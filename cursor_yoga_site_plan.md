@@ -120,19 +120,15 @@ Produce seed content, a default admin account flow, and a minimal README for fut
 
 ## Route map
 
-Create these routes unless Stitch clearly defines a better equivalent set:
+For this build, treat the public website as a **single-page site**.
 
-- `/` — Home
-- `/about` — About / teacher bio
-- `/classes` — Fixed class descriptions and booking CTA
-- `/book` — Acuity scheduling embed or linked booking screen
-- `/contact` — Contact details and optional map/embed block
-- `/gallery` — Optional if the design includes a dedicated gallery page
+Required routes:
+- `/` — Single public page with all sections
 - `/login` — Admin login
 - `/edit` — Edit dashboard landing page
-- `/edit/[slug]` — Page-specific visual editing mode using the real public layout
+- `/edit/[slug]` — Page-specific visual editing mode (start with `home`)
 
-If the Stitch project defines a different set of pages, adapt the routes to the design while preserving the same architecture.
+Public navigation should use in-page anchors (for example `/#about`, `/#schedule`, `/#contact`) rather than separate public routes.
 
 ---
 
@@ -141,6 +137,12 @@ If the Stitch project defines a different set of pages, adapt the routes to the 
 Use a **fixed-region** content model.
 
 Do not create a generic page builder.
+
+### Fixed-region stability rules
+- region labels may be human-friendly placeholders during early build (for example, `Bio section 1`)
+- region identity must come from stable `section_key` values, not labels
+- unknown copy/layout details from Stitch must be handled by relabeling existing seeded regions first
+- only add new regions when Stitch clearly requires them; do not create ad hoc regions in the editor UI
 
 ### Table: `pages`
 Use one row per route.
@@ -167,6 +169,8 @@ Columns:
 - `json_value` jsonb null
 - `image_path` text null
 - `alt_text` text null
+- `is_required` boolean not null default true
+- `is_active` boolean not null default true
 - `sort_order` integer default 0
 - `created_at` timestamptz default now()
 - `updated_at` timestamptz default now()
@@ -198,6 +202,7 @@ Columns:
 - `postcode` text
 - `instagram_url` text
 - `facebook_url` text
+- `linkedin_url` text
 - `booking_url` text
 - `headshot_image_path` text
 - `headshot_alt_text` text
@@ -218,59 +223,32 @@ Columns:
 
 Implement these fixed editable regions.
 
-### Home page
-- hero heading
-- hero subheading
-- hero image
-- intro paragraph
-- primary CTA text
-- primary CTA link
-- teacher headshot
-- teacher bio summary
-- fixed class summary cards
-- optional testimonial strip text
-- homepage gallery
+### Single page (`home`)
+- hero heading (`hero_heading`)
+- hero subheading (`hero_subheading`)
+- hero image (`hero_image`)
+- primary CTA text (`hero_primary_cta_text`)
+- primary CTA link (`hero_primary_cta_link`)
+- studio section heading (`studio_heading`)
+- studio section body (`studio_body`)
+- studio feature cards (`studio_feature_cards`)
+- about section heading (`about_heading`)
+- about body primary (`about_body_primary`)
+- about body secondary (`about_body_secondary`)
+- teacher headshot (`about_headshot_image`)
+- practice section heading (`practice_heading`)
+- practice method cards (`practice_cards`)
+- schedule section heading (`schedule_heading`)
+- schedule intro text (`schedule_intro`)
+- booking CTA text (`booking_cta_text`)
+- booking CTA link (`booking_cta_link`)
+- contact section heading (`contact_heading`)
+- contact intro text (`contact_intro`)
+- contact group (`contact_group`)
+- FAQ section heading (`faq_heading`)
+- FAQ items (`faq_items`)
 
-### About page
-- page heading
-- bio section 1
-- bio section 2
-- headshot image
-- optional secondary image
-
-### Classes page
-- page heading
-- intro text
-- fixed class card 1
-- fixed class card 2
-- fixed class card 3
-- booking CTA text
-- booking CTA link
-
-Each fixed class card should support only:
-- title
-- short description
-- optional duration text
-- optional price text
-
-### Book page
-- heading
-- intro text
-- Acuity embed or booking button/link
-- optional FAQ blurb
-
-### Contact page
-- heading
-- intro text
-- phone
-- email
-- address lines
-- optional map/embed area controlled in code
-
-### Gallery page if present
-- heading
-- intro text
-- gallery images
+If Stitch final mockups add or remove sections, update the manifest deliberately via migrations/seeds. Do not add runtime-defined sections from the editor UI.
 
 ---
 
@@ -294,6 +272,9 @@ Requirements:
 - enforce file type validation in UI: jpg, jpeg, png, webp
 - enforce max upload size in UI
 - strongly encourage sensible dimensions per field in helper text
+- store image paths (bucket-relative) in the database; construct public URLs in the app layer
+- use deterministic folder/file naming to avoid orphaned assets on replace
+- when replacing an image, delete old storage objects only after successful DB update to the new path
 
 If Supabase image transformations are available in the project, use them for display sizing. Otherwise use `next/image` with stable remote patterns and sized rendering.
 
@@ -312,6 +293,12 @@ Requirements:
 - public reads are allowed only where needed for published site rendering
 
 Implement RLS policies accordingly.
+
+Policy baseline:
+- `anon` and `authenticated` may read only published site content tables needed for public rendering
+- only admin users may insert/update/delete content tables and storage objects
+- deny direct writes for all non-admin roles by default
+- keep policy logic simple and auditable; avoid dynamic role systems beyond single-admin needs
 
 Do not overbuild roles. One admin role is enough.
 
@@ -333,6 +320,12 @@ Use this pattern:
 2. render complete HTML on server
 3. cache appropriately
 4. on admin save, trigger revalidation for affected routes
+
+Revalidation endpoint security:
+- require a shared secret for `/api/revalidate`
+- accept only server-side admin-triggered requests
+- reject unsigned or invalid requests with 401
+- revalidate only explicitly provided route paths
 
 ---
 
@@ -431,11 +424,6 @@ Use this as the baseline:
 app/
   (public)/
     page.tsx
-    about/page.tsx
-    classes/page.tsx
-    book/page.tsx
-    contact/page.tsx
-    gallery/page.tsx
   edit/
     page.tsx
     [slug]/page.tsx
@@ -492,7 +480,7 @@ types/
   database.ts
 ```
 
-If a page does not exist in the final design, omit it, but keep the same architectural pattern.
+This project currently uses one public route (`/`). Keep the same architectural pattern if additional public routes are added later.
 
 ---
 
@@ -563,7 +551,7 @@ Use Supabase MCP to create and verify the backend setup.
 Seed the database with placeholder content if real copy is not available.
 
 Requirements:
-- every route must render with realistic placeholder content
+- every public section on `/` must render with realistic placeholder content
 - section labels must be human-readable in edit mode
 - every editable region must already exist in the database after seeding
 - avoid requiring the client to create missing sections manually
@@ -627,11 +615,13 @@ Implement server-side and client-side validation.
 Booking is external.
 
 Requirements:
-- include a booking CTA on relevant pages
-- use either an embed or a clean external link depending on the design
+- until an Acuity account exists, use a booking placeholder CTA/link plus editable helper text
+- include booking CTA content in the single-page schedule/booking section
+- once Acuity is available, use either an embed or a clean external link depending on the design
 - do not store class schedules in the database unless needed only for display copy
 - do not recreate booking management
 - keep the booking URL editable in `site_settings`
+- if embed fails (provider/CSP/browser restrictions), show a clear fallback button linking to the booking URL
 
 ---
 
@@ -703,7 +693,7 @@ Show clear admin-facing messages in edit mode. Public pages should fail graceful
 Complete these checks before considering the task done.
 
 ### Public site
-- all pages render with server-fetched content
+- single public page renders all sections with server-fetched content
 - no flash of unloaded content
 - responsive on mobile/tablet/desktop
 - images render correctly
