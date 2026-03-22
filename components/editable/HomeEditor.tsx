@@ -104,7 +104,8 @@ function parseContactGroup(value: unknown): ContactGroup {
 }
 
 const imageFields = [
-  { key: "hero_image", label: "Hero image" },
+  { key: "hero_image", label: "Hero background image" },
+  { key: "site_logo_image", label: "Header logo image" },
   { key: "studio_image", label: "Studio image" },
   { key: "about_headshot_image", label: "About headshot image" },
 ] as const;
