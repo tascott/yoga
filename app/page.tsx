@@ -38,6 +38,8 @@ function readJsonObject(value: unknown): Record<string, string> {
 export default async function Home({ searchParams }: HomePageProps) {
   const params = (await searchParams) ?? {};
   const isEditPreview = params.edit === "1";
+  const web3FormsAccessKey = process.env.NEXT_PUBLIC_WEB3FORMS_ACCESS_KEY ?? "";
+  const currentYear = new Date().getFullYear();
   const content = await getHomePageContent();
   const { sections, settings } = content;
 
@@ -52,6 +54,9 @@ export default async function Home({ searchParams }: HomePageProps) {
   const practiceCards = readJsonArray<BasicCard>(sections.practice_cards?.jsonValue);
   const faqItems = readJsonArray<FaqItem>(sections.faq_items?.jsonValue);
   const contactGroup = readJsonObject(sections.contact_group?.jsonValue);
+  const studioImage =
+    sections.studio_image?.imagePath ||
+    "https://lh3.googleusercontent.com/aida-public/AB6AXuDdZboxgcbURHnrsqPthHz4Gd2wy_oDv0ULJ4KIs4me4Ciedc-vO6V8odvXDm_VWQxRv6RvgwAXbYuR5QV1y-u6OybPOqtPPs6GiZWgwkB46weomSiq8mq5RBtGJuta3KKRrr9X_9KBTYdSlXYSn5hERbMQ-u3LJdMUrMk1ENX2I-Jp0zmSKlUshHVsiAGjC5YnbPwjZr68Ir6WOIUPw8NrkAFpBxHn214feoKPPQNlt22oMre37QzgwOs8tLDuk7jGu19Yv4BsQw";
   const heroImage =
     sections.hero_image?.imagePath ||
     "https://lh3.googleusercontent.com/aida-public/AB6AXuCNWAO3KhL-GFV2PV7Sihcp0X5YLK_5wSDIpphk7bGFN88T48M5ymcHBYIH3iWqgcb9mFP8phyJphyRSJwA3CKdG9LQpMq_3EbOevyoUoUMwF5_KZjt8XtOrT8bIKtmrxZc6XM3YwdWjkjnWVmiUPVs0-RmKKVId3zAMrOHGMN-4fjEaIbuby9eIpR8VvDvfo9Qoo12bbReL9vaLqdcHqL-qlOjC1lI6_Bh0I4C4PFFKNS7FHcWwliKa51K7Sss5mHc08RRhoGjaw";
@@ -81,7 +86,7 @@ export default async function Home({ searchParams }: HomePageProps) {
           <a href="#" className="font-headline text-2xl italic text-primary">
             {settings.siteName || content.pageTitle}
           </a>
-          <ul className="hidden items-center gap-8 md:flex">
+          <ul className="hidden items-center gap-6 lg:flex xl:gap-8">
             {navItems.map((item) => (
               <li key={item.href}>
                 <a
@@ -95,7 +100,7 @@ export default async function Home({ searchParams }: HomePageProps) {
           </ul>
           <a
             href={settings.bookingUrl || readText(sections, "booking_cta_link", "#schedule")}
-            className="rounded-full bg-primary px-5 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-white transition-colors hover:bg-primary-container"
+            className="ml-4 shrink-0 whitespace-nowrap rounded-full bg-primary px-5 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-white transition-colors hover:bg-primary-container"
           >
             Book now
           </a>
@@ -161,20 +166,20 @@ export default async function Home({ searchParams }: HomePageProps) {
         </section>
 
         <section
-          data-edit-target="studio_heading,studio_body,studio_feature_cards,about_headshot_image"
+          data-edit-target="studio_heading,studio_body,studio_feature_cards,studio_image"
           className={`mx-auto grid max-w-7xl grid-cols-1 items-center gap-12 px-6 py-28 md:grid-cols-12 ${
             isEditPreview ? "outline outline-2 outline-transparent transition hover:outline-primary/40" : ""
           }`}
         >
           <div className="relative md:col-span-5">
             <div
-              data-edit-target="about_headshot_image"
+              data-edit-target="studio_image"
               className="aspect-[4/5] overflow-hidden rounded-[1.5rem] bg-surface-high"
             >
               <div className="relative h-full w-full">
                 <Image
-                  src={aboutImage}
-                  alt={sections.about_headshot_image?.altText || "Yoga studio portrait"}
+                  src={studioImage}
+                  alt={sections.studio_image?.altText || "Yoga studio portrait"}
                   fill
                   sizes="(min-width: 768px) 40vw, 100vw"
                   className="h-full w-full object-cover"
@@ -339,9 +344,61 @@ export default async function Home({ searchParams }: HomePageProps) {
               <p data-edit-target="contact_intro" className="mt-6 text-lg leading-relaxed text-foreground/80">
                 {readText(sections, "contact_intro")}
               </p>
+              <form action="https://api.web3forms.com/submit" method="POST" className="mt-8 space-y-4 rounded-xl bg-white p-5 shadow-sm">
+                <input type="hidden" name="access_key" value={web3FormsAccessKey} />
+                <input type="hidden" name="subject" value="New Accessible Yoga Hut enquiry" />
+                <input type="checkbox" name="botcheck" className="hidden" tabIndex={-1} autoComplete="off" />
+                <div>
+                  <label htmlFor="contact-name" className="mb-1 block text-xs font-semibold uppercase tracking-[0.12em] text-foreground/70">
+                    Name
+                  </label>
+                  <input
+                    id="contact-name"
+                    name="name"
+                    required
+                    className="w-full rounded-md border border-black/10 px-3 py-2 text-sm outline-none focus:border-black/30"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="contact-email" className="mb-1 block text-xs font-semibold uppercase tracking-[0.12em] text-foreground/70">
+                    Email
+                  </label>
+                  <input
+                    id="contact-email"
+                    name="email"
+                    type="email"
+                    required
+                    className="w-full rounded-md border border-black/10 px-3 py-2 text-sm outline-none focus:border-black/30"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="contact-message" className="mb-1 block text-xs font-semibold uppercase tracking-[0.12em] text-foreground/70">
+                    Message
+                  </label>
+                  <textarea
+                    id="contact-message"
+                    name="message"
+                    rows={4}
+                    required
+                    className="w-full rounded-md border border-black/10 px-3 py-2 text-sm outline-none focus:border-black/30"
+                  />
+                </div>
+                {!web3FormsAccessKey ? (
+                  <p className="text-xs text-red-700">
+                    Missing `NEXT_PUBLIC_WEB3FORMS_ACCESS_KEY` in environment settings.
+                  </p>
+                ) : null}
+                <button
+                  type="submit"
+                  disabled={!web3FormsAccessKey}
+                  className="rounded-md bg-primary px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Send message
+                </button>
+              </form>
               <div data-edit-target="contact_group" className="mt-10 space-y-2 text-sm text-foreground/80">
                 <p>{contactGroup.email || settings.primaryEmail || "Email to be added"}</p>
-                <p>{contactGroup.phone || settings.primaryPhone || "Phone to be added"}</p>
+                <p>{contactGroup.phone || settings.primaryPhone || "+44 20 7946 0958"}</p>
                 <p>
                   {[
                     contactGroup.address_line_1 || settings.addressLine1,
@@ -362,8 +419,18 @@ export default async function Home({ searchParams }: HomePageProps) {
               <div className="mt-8 space-y-2 text-sm">
                 <p className="font-semibold text-secondary">Social</p>
                 <div className="flex gap-4">
-                  {settings.instagramUrl ? <a href={settings.instagramUrl}>Instagram</a> : null}
-                  {settings.linkedinUrl ? <a href={settings.linkedinUrl}>LinkedIn</a> : null}
+                  <a href={settings.instagramUrl || "https://instagram.com"} className="inline-flex items-center gap-1">
+                    <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4 fill-current">
+                      <path d="M7.75 2h8.5A5.75 5.75 0 0 1 22 7.75v8.5A5.75 5.75 0 0 1 16.25 22h-8.5A5.75 5.75 0 0 1 2 16.25v-8.5A5.75 5.75 0 0 1 7.75 2Zm0 1.5A4.25 4.25 0 0 0 3.5 7.75v8.5A4.25 4.25 0 0 0 7.75 20.5h8.5a4.25 4.25 0 0 0 4.25-4.25v-8.5A4.25 4.25 0 0 0 16.25 3.5h-8.5Zm8.9 1.3a1.05 1.05 0 1 1 0 2.1 1.05 1.05 0 0 1 0-2.1ZM12 7a5 5 0 1 1 0 10 5 5 0 0 1 0-10Zm0 1.5a3.5 3.5 0 1 0 0 7.001A3.5 3.5 0 0 0 12 8.5Z" />
+                    </svg>
+                    Instagram
+                  </a>
+                  <a href={settings.facebookUrl || "https://facebook.com"} className="inline-flex items-center gap-1">
+                    <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4 fill-current">
+                      <path d="M13.5 22v-8h2.7l.4-3h-3.1V9.2c0-.9.3-1.5 1.6-1.5h1.7V5.1c-.3 0-1.3-.1-2.4-.1-2.4 0-4 1.4-4 4.1V11H8v3h2.4v8h3.1Z" />
+                    </svg>
+                    Facebook
+                  </a>
                 </div>
               </div>
             </div>
@@ -392,6 +459,19 @@ export default async function Home({ searchParams }: HomePageProps) {
           </div>
         </section>
       </main>
+      <footer className="bg-surface-container px-6 py-8 text-sm text-foreground/75">
+        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3">
+          <p>Copyright {currentYear} Accessible Yoga Hut. All rights reserved.</p>
+          <div className="flex items-center gap-4">
+            <a href={settings.instagramUrl || "https://instagram.com"} className="hover:text-primary">
+              Instagram
+            </a>
+            <a href={settings.facebookUrl || "https://facebook.com"} className="hover:text-primary">
+              Facebook
+            </a>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }
