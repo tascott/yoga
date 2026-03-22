@@ -27,6 +27,14 @@ function readJsonArray<T>(value: unknown): T[] {
   return Array.isArray(value) ? (value as T[]) : [];
 }
 
+function readJsonObject(value: unknown): Record<string, string> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  const raw = value as Record<string, unknown>;
+  return Object.fromEntries(
+    Object.entries(raw).map(([key, val]) => [key, typeof val === "string" ? val : ""]),
+  );
+}
+
 export default async function Home({ searchParams }: HomePageProps) {
   const params = (await searchParams) ?? {};
   const isEditPreview = params.edit === "1";
@@ -43,6 +51,7 @@ export default async function Home({ searchParams }: HomePageProps) {
   const featureCards = readJsonArray<BasicCard>(sections.studio_feature_cards?.jsonValue);
   const practiceCards = readJsonArray<BasicCard>(sections.practice_cards?.jsonValue);
   const faqItems = readJsonArray<FaqItem>(sections.faq_items?.jsonValue);
+  const contactGroup = readJsonObject(sections.contact_group?.jsonValue);
   const heroImage =
     sections.hero_image?.imagePath ||
     "https://lh3.googleusercontent.com/aida-public/AB6AXuCNWAO3KhL-GFV2PV7Sihcp0X5YLK_5wSDIpphk7bGFN88T48M5ymcHBYIH3iWqgcb9mFP8phyJphyRSJwA3CKdG9LQpMq_3EbOevyoUoUMwF5_KZjt8XtOrT8bIKtmrxZc6XM3YwdWjkjnWVmiUPVs0-RmKKVId3zAMrOHGMN-4fjEaIbuby9eIpR8VvDvfo9Qoo12bbReL9vaLqdcHqL-qlOjC1lI6_Bh0I4C4PFFKNS7FHcWwliKa51K7Sss5mHc08RRhoGjaw";
@@ -56,6 +65,16 @@ export default async function Home({ searchParams }: HomePageProps) {
         <div className="fixed bottom-4 right-4 z-[60] rounded-full bg-primary px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-white shadow-lg">
           Edit Preview
         </div>
+      ) : null}
+      {isEditPreview ? (
+        <style>{`
+          [data-edit-target] {
+            cursor: pointer;
+          }
+          [data-edit-target]:hover {
+            outline: 2px solid rgba(75, 99, 90, 0.55);
+          }
+        `}</style>
       ) : null}
       <header className="fixed top-0 z-50 w-full bg-background/90 shadow-sm shadow-emerald-900/5 backdrop-blur-md">
         <nav className="mx-auto flex w-full max-w-7xl items-center justify-between px-6 py-5">
@@ -91,7 +110,7 @@ export default async function Home({ searchParams }: HomePageProps) {
             isEditPreview ? "outline outline-2 outline-transparent transition hover:outline-primary/40" : ""
           }`}
         >
-          <div className="absolute inset-0">
+          <div data-edit-target="hero_image" className="absolute inset-0">
             <Image
               src={heroImage}
               alt={sections.hero_image?.altText || "Calm yoga studio with soft morning light"}
@@ -148,7 +167,10 @@ export default async function Home({ searchParams }: HomePageProps) {
           }`}
         >
           <div className="relative md:col-span-5">
-            <div className="aspect-[4/5] overflow-hidden rounded-[1.5rem] bg-surface-high">
+            <div
+              data-edit-target="about_headshot_image"
+              className="aspect-[4/5] overflow-hidden rounded-[1.5rem] bg-surface-high"
+            >
               <div className="relative h-full w-full">
                 <Image
                   src={aboutImage}
@@ -202,7 +224,10 @@ export default async function Home({ searchParams }: HomePageProps) {
               </p>
             </div>
             <div className="md:col-span-2">
-              <div className="sticky top-30 rotate-2 overflow-hidden rounded-[1.5rem] shadow-2xl">
+              <div
+                data-edit-target="about_headshot_image"
+                className="sticky top-30 rotate-2 overflow-hidden rounded-[1.5rem] shadow-2xl"
+              >
                 <div className="relative aspect-[3/4] w-full">
                   <Image
                     src={aboutImage}
@@ -301,7 +326,7 @@ export default async function Home({ searchParams }: HomePageProps) {
 
         <section
           id="contact"
-          data-edit-target="contact_heading,contact_intro"
+          data-edit-target="contact_heading,contact_intro,contact_group"
           className={`mx-auto max-w-7xl px-6 py-28 ${
             isEditPreview ? "outline outline-2 outline-transparent transition hover:outline-primary/40" : ""
           }`}
@@ -314,10 +339,19 @@ export default async function Home({ searchParams }: HomePageProps) {
               <p data-edit-target="contact_intro" className="mt-6 text-lg leading-relaxed text-foreground/80">
                 {readText(sections, "contact_intro")}
               </p>
-              <div className="mt-10 space-y-2 text-sm text-foreground/80">
-                <p>{settings.primaryEmail || "Email to be added"}</p>
-                <p>{settings.primaryPhone || "Phone to be added"}</p>
-                <p>{[settings.addressLine1, settings.addressLine2, settings.city, settings.postcode].filter(Boolean).join(", ")}</p>
+              <div data-edit-target="contact_group" className="mt-10 space-y-2 text-sm text-foreground/80">
+                <p>{contactGroup.email || settings.primaryEmail || "Email to be added"}</p>
+                <p>{contactGroup.phone || settings.primaryPhone || "Phone to be added"}</p>
+                <p>
+                  {[
+                    contactGroup.address_line_1 || settings.addressLine1,
+                    contactGroup.address_line_2 || settings.addressLine2,
+                    settings.city,
+                    settings.postcode,
+                  ]
+                    .filter(Boolean)
+                    .join(", ")}
+                </p>
               </div>
             </div>
             <div className="rounded-[1.5rem] bg-surface-high p-8">

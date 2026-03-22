@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
+import type { Json } from "@/types/database";
 
 type SectionRow = {
   id: string;
@@ -19,7 +20,7 @@ type SectionRow = {
 type EditableField = {
   key: string;
   label: string;
-  mode: "text" | "textarea" | "json";
+  mode: "text" | "textarea";
 };
 
 const editableFields: EditableField[] = [
@@ -29,12 +30,10 @@ const editableFields: EditableField[] = [
   { key: "hero_primary_cta_link", label: "Hero CTA link", mode: "text" },
   { key: "studio_heading", label: "Studio heading", mode: "text" },
   { key: "studio_body", label: "Studio body", mode: "textarea" },
-  { key: "studio_feature_cards", label: "Studio feature cards (JSON)", mode: "json" },
   { key: "about_heading", label: "About heading", mode: "text" },
   { key: "about_body_primary", label: "About body primary", mode: "textarea" },
   { key: "about_body_secondary", label: "About body secondary", mode: "textarea" },
   { key: "practice_heading", label: "Practice heading", mode: "text" },
-  { key: "practice_cards", label: "Practice cards (JSON)", mode: "json" },
   { key: "schedule_heading", label: "Schedule heading", mode: "text" },
   { key: "schedule_intro", label: "Schedule intro", mode: "textarea" },
   { key: "booking_cta_text", label: "Booking CTA text", mode: "text" },
@@ -42,8 +41,67 @@ const editableFields: EditableField[] = [
   { key: "contact_heading", label: "Contact heading", mode: "text" },
   { key: "contact_intro", label: "Contact intro", mode: "textarea" },
   { key: "faq_heading", label: "FAQ heading", mode: "text" },
-  { key: "faq_items", label: "FAQ items (JSON)", mode: "json" },
 ];
+
+type SimpleCard = {
+  title: string;
+  description: string;
+};
+
+type FaqItem = {
+  question: string;
+  answer: string;
+};
+
+type ContactGroup = {
+  phone: string;
+  email: string;
+  address_line_1: string;
+  address_line_2: string;
+};
+
+function parseSimpleCards(value: unknown, fallback: SimpleCard[]): SimpleCard[] {
+  if (!Array.isArray(value)) return fallback;
+  const parsed = value
+    .map((item) => {
+      if (!item || typeof item !== "object") return null;
+      const raw = item as Record<string, unknown>;
+      return {
+        title: typeof raw.title === "string" ? raw.title : "",
+        description: typeof raw.description === "string" ? raw.description : "",
+      };
+    })
+    .filter((item): item is SimpleCard => Boolean(item));
+  return parsed.length ? parsed : fallback;
+}
+
+function parseFaqItems(value: unknown, fallback: FaqItem[]): FaqItem[] {
+  if (!Array.isArray(value)) return fallback;
+  const parsed = value
+    .map((item) => {
+      if (!item || typeof item !== "object") return null;
+      const raw = item as Record<string, unknown>;
+      return {
+        question: typeof raw.question === "string" ? raw.question : "",
+        answer: typeof raw.answer === "string" ? raw.answer : "",
+      };
+    })
+    .filter((item): item is FaqItem => Boolean(item));
+  return parsed.length ? parsed : fallback;
+}
+
+function parseContactGroup(value: unknown): ContactGroup {
+  if (!value || typeof value !== "object") {
+    return { phone: "", email: "", address_line_1: "", address_line_2: "" };
+  }
+  const raw = value as Record<string, unknown>;
+  return {
+    phone: typeof raw.phone === "string" ? raw.phone : "",
+    email: typeof raw.email === "string" ? raw.email : "",
+    address_line_1: typeof raw.address_line_1 === "string" ? raw.address_line_1 : "",
+    address_line_2: typeof raw.address_line_2 === "string" ? raw.address_line_2 : "",
+  };
+}
 
 const imageFields = [
   { key: "hero_image", label: "Hero image" },
@@ -60,6 +118,19 @@ export function HomeEditor() {
   const [formValues, setFormValues] = useState<Record<string, string>>({});
   const [imageAltValues, setImageAltValues] = useState<Record<string, string>>({});
   const [imageFileByKey, setImageFileByKey] = useState<Record<string, File | null>>({});
+  const [studioFeatureCards, setStudioFeatureCards] = useState<SimpleCard[]>([
+    { title: "", description: "" },
+  ]);
+  const [practiceCards, setPracticeCards] = useState<SimpleCard[]>([
+    { title: "", description: "" },
+  ]);
+  const [faqItems, setFaqItems] = useState<FaqItem[]>([{ question: "", answer: "" }]);
+  const [contactGroup, setContactGroup] = useState<ContactGroup>({
+    phone: "",
+    email: "",
+    address_line_1: "",
+    address_line_2: "",
+  });
   const [bookingUrl, setBookingUrl] = useState("");
   const [siteSettingsId, setSiteSettingsId] = useState<string | null>(null);
   const [previewKey, setPreviewKey] = useState(0);
@@ -70,6 +141,10 @@ export function HomeEditor() {
     editableFields.forEach((field) => {
       map[field.key] = field.label;
     });
+    map.studio_feature_cards = "Studio feature cards";
+    map.practice_cards = "Practice cards";
+    map.faq_items = "FAQ items";
+    map.contact_group = "Contact details";
     imageFields.forEach((field) => {
       map[field.key] = field.label;
     });
@@ -111,13 +186,31 @@ export function HomeEditor() {
       const sectionMap: Record<string, SectionRow> = {};
       const values: Record<string, string> = {};
       const imageAltMap: Record<string, string> = {};
+      let nextStudioCards: SimpleCard[] = [{ title: "", description: "" }];
+      let nextPracticeCards: SimpleCard[] = [{ title: "", description: "" }];
+      let nextFaqItems: FaqItem[] = [{ question: "", answer: "" }];
+      let nextContactGroup: ContactGroup = {
+        phone: "",
+        email: "",
+        address_line_1: "",
+        address_line_2: "",
+      };
 
       (sections || []).forEach((section) => {
         sectionMap[section.section_key] = section;
-        if (section.kind === "json" || section.kind === "class_card_group" || section.kind === "contact_group") {
-          values[section.section_key] = JSON.stringify(section.json_value ?? {}, null, 2);
-        } else {
-          values[section.section_key] = section.text_value ?? "";
+        values[section.section_key] = section.text_value ?? "";
+
+        if (section.section_key === "studio_feature_cards") {
+          nextStudioCards = parseSimpleCards(section.json_value, nextStudioCards);
+        }
+        if (section.section_key === "practice_cards") {
+          nextPracticeCards = parseSimpleCards(section.json_value, nextPracticeCards);
+        }
+        if (section.section_key === "faq_items") {
+          nextFaqItems = parseFaqItems(section.json_value, nextFaqItems);
+        }
+        if (section.section_key === "contact_group") {
+          nextContactGroup = parseContactGroup(section.json_value);
         }
 
         imageAltMap[section.section_key] = section.alt_text ?? "";
@@ -129,6 +222,10 @@ export function HomeEditor() {
       setSectionByKey(sectionMap);
       setFormValues(values);
       setImageAltValues(imageAltMap);
+      setStudioFeatureCards(nextStudioCards);
+      setPracticeCards(nextPracticeCards);
+      setFaqItems(nextFaqItems);
+      setContactGroup(nextContactGroup);
       setBookingUrl(settings?.booking_url ?? "");
       setSiteSettingsId(settings?.id ?? null);
       setIsLoading(false);
@@ -151,6 +248,28 @@ export function HomeEditor() {
 
   function updateImageFile(key: string, file: File | null) {
     setImageFileByKey((current) => ({ ...current, [key]: file }));
+  }
+
+  function updateStudioCard(index: number, field: keyof SimpleCard, value: string) {
+    setStudioFeatureCards((current) =>
+      current.map((item, itemIndex) => (itemIndex === index ? { ...item, [field]: value } : item)),
+    );
+  }
+
+  function updatePracticeCard(index: number, field: keyof SimpleCard, value: string) {
+    setPracticeCards((current) =>
+      current.map((item, itemIndex) => (itemIndex === index ? { ...item, [field]: value } : item)),
+    );
+  }
+
+  function updateFaqItem(index: number, field: keyof FaqItem, value: string) {
+    setFaqItems((current) =>
+      current.map((item, itemIndex) => (itemIndex === index ? { ...item, [field]: value } : item)),
+    );
+  }
+
+  function updateContactField(field: keyof ContactGroup, value: string) {
+    setContactGroup((current) => ({ ...current, [field]: value }));
   }
 
   function focusFieldFromPreview(fieldKey: string) {
@@ -212,20 +331,16 @@ export function HomeEditor() {
             .join(" / ")
             .slice(0, 120) || "Editable region";
 
-        target.style.cursor = "pointer";
-
         const handleClick = (event: Event) => {
           event.preventDefault();
           event.stopPropagation();
           focusFieldFromPreview(firstKey);
         };
         const handleMouseEnter = () => {
-          target.style.outline = "2px solid rgba(75, 99, 90, 0.55)";
           hintEl.textContent = `Editing: ${labelText}`;
           hintEl.style.display = "block";
         };
         const handleMouseLeave = () => {
-          target.style.outline = "";
           hintEl.style.display = "none";
         };
         const handleMouseMove = (event: MouseEvent) => {
@@ -243,7 +358,6 @@ export function HomeEditor() {
           target.removeEventListener("mouseenter", handleMouseEnter);
           target.removeEventListener("mouseleave", handleMouseLeave);
           target.removeEventListener("mousemove", handleMouseMove);
-          target.style.outline = "";
         });
       });
     };
@@ -267,32 +381,31 @@ export function HomeEditor() {
       for (const field of editableFields) {
         const section = sectionByKey[field.key];
         if (!section) continue;
+        const { error } = await supabase
+          .from("page_sections")
+          .update({ text_value: formValues[field.key] ?? "" })
+          .eq("id", section.id);
 
-        if (field.mode === "json") {
-          let parsed: unknown = null;
-          const rawValue = formValues[field.key]?.trim();
-          if (rawValue) {
-            try {
-              parsed = JSON.parse(rawValue);
-            } catch {
-              throw new Error(`Invalid JSON in "${field.label}".`);
-            }
-          }
+        if (error) throw new Error(error.message);
+      }
 
-          const { error } = await supabase
-            .from("page_sections")
-            .update({ json_value: parsed })
-            .eq("id", section.id);
+      const jsonUpdates: Array<{ key: string; value: Json }> = [
+        { key: "studio_feature_cards", value: studioFeatureCards },
+        { key: "practice_cards", value: practiceCards },
+        { key: "faq_items", value: faqItems },
+        { key: "contact_group", value: contactGroup },
+      ];
 
-          if (error) throw new Error(error.message);
-        } else {
-          const { error } = await supabase
-            .from("page_sections")
-            .update({ text_value: formValues[field.key] ?? "" })
-            .eq("id", section.id);
+      for (const jsonUpdate of jsonUpdates) {
+        const section = sectionByKey[jsonUpdate.key];
+        if (!section) continue;
 
-          if (error) throw new Error(error.message);
-        }
+        const { error } = await supabase
+          .from("page_sections")
+          .update({ json_value: jsonUpdate.value })
+          .eq("id", section.id);
+
+        if (error) throw new Error(error.message);
       }
 
       for (const imageField of imageFields) {
@@ -404,7 +517,7 @@ export function HomeEditor() {
         <form onSubmit={onSubmit} className="space-y-6 rounded-2xl bg-surface-low p-5">
         {editableFields.map((field) => {
           const value = formValues[field.key] ?? "";
-          const rows = field.mode === "json" ? 8 : 4;
+          const rows = field.mode === "textarea" ? 4 : 1;
 
           return (
             <section
@@ -435,6 +548,201 @@ export function HomeEditor() {
           );
         })}
 
+        <section
+          id="field-section-studio_feature_cards"
+          className={`rounded-xl bg-white p-5 shadow-sm ${activeFieldKey === "studio_feature_cards" ? "ring-2 ring-primary/60" : ""}`}
+        >
+          <div className="mb-3 flex items-center justify-between">
+            <p className="text-sm font-semibold">Studio feature cards</p>
+            <button
+              type="button"
+              onClick={() => setStudioFeatureCards((current) => [...current, { title: "", description: "" }])}
+              className="rounded-md border border-black/10 bg-white px-3 py-1.5 text-xs font-semibold"
+            >
+              Add card
+            </button>
+          </div>
+          <div className="space-y-3">
+            {studioFeatureCards.map((card, index) => (
+              <div key={`studio-card-${index}`} className="rounded-lg border border-black/10 p-3">
+                <div className="mb-2 flex items-center justify-between">
+                  <p className="text-xs font-semibold uppercase tracking-[0.15em] text-foreground/65">Card {index + 1}</p>
+                  {studioFeatureCards.length > 1 ? (
+                    <button
+                      type="button"
+                      onClick={() => setStudioFeatureCards((current) => current.filter((_, itemIndex) => itemIndex !== index))}
+                      className="text-xs font-semibold text-red-700 underline"
+                    >
+                      Remove
+                    </button>
+                  ) : null}
+                </div>
+                <input
+                  value={card.title}
+                  onChange={(event) => updateStudioCard(index, "title", event.target.value)}
+                  placeholder="Feature title"
+                  className="mb-2 w-full rounded-md border border-black/10 px-3 py-2 text-sm outline-none focus:border-black/30"
+                />
+                <textarea
+                  value={card.description}
+                  onChange={(event) => updateStudioCard(index, "description", event.target.value)}
+                  rows={3}
+                  placeholder="Feature description"
+                  className="w-full rounded-md border border-black/10 px-3 py-2 text-sm outline-none focus:border-black/30"
+                />
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section
+          id="field-section-practice_cards"
+          className={`rounded-xl bg-white p-5 shadow-sm ${activeFieldKey === "practice_cards" ? "ring-2 ring-primary/60" : ""}`}
+        >
+          <div className="mb-3 flex items-center justify-between">
+            <p className="text-sm font-semibold">Practice cards</p>
+            <button
+              type="button"
+              onClick={() => setPracticeCards((current) => [...current, { title: "", description: "" }])}
+              className="rounded-md border border-black/10 bg-white px-3 py-1.5 text-xs font-semibold"
+            >
+              Add card
+            </button>
+          </div>
+          <div className="space-y-3">
+            {practiceCards.map((card, index) => (
+              <div key={`practice-card-${index}`} className="rounded-lg border border-black/10 p-3">
+                <div className="mb-2 flex items-center justify-between">
+                  <p className="text-xs font-semibold uppercase tracking-[0.15em] text-foreground/65">Card {index + 1}</p>
+                  {practiceCards.length > 1 ? (
+                    <button
+                      type="button"
+                      onClick={() => setPracticeCards((current) => current.filter((_, itemIndex) => itemIndex !== index))}
+                      className="text-xs font-semibold text-red-700 underline"
+                    >
+                      Remove
+                    </button>
+                  ) : null}
+                </div>
+                <input
+                  value={card.title}
+                  onChange={(event) => updatePracticeCard(index, "title", event.target.value)}
+                  placeholder="Card title"
+                  className="mb-2 w-full rounded-md border border-black/10 px-3 py-2 text-sm outline-none focus:border-black/30"
+                />
+                <textarea
+                  value={card.description}
+                  onChange={(event) => updatePracticeCard(index, "description", event.target.value)}
+                  rows={3}
+                  placeholder="Card description"
+                  className="w-full rounded-md border border-black/10 px-3 py-2 text-sm outline-none focus:border-black/30"
+                />
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section
+          id="field-section-faq_items"
+          className={`rounded-xl bg-white p-5 shadow-sm ${activeFieldKey === "faq_items" ? "ring-2 ring-primary/60" : ""}`}
+        >
+          <div className="mb-3 flex items-center justify-between">
+            <p className="text-sm font-semibold">FAQ items</p>
+            <button
+              type="button"
+              onClick={() => setFaqItems((current) => [...current, { question: "", answer: "" }])}
+              className="rounded-md border border-black/10 bg-white px-3 py-1.5 text-xs font-semibold"
+            >
+              Add FAQ
+            </button>
+          </div>
+          <div className="space-y-3">
+            {faqItems.map((item, index) => (
+              <div key={`faq-item-${index}`} className="rounded-lg border border-black/10 p-3">
+                <div className="mb-2 flex items-center justify-between">
+                  <p className="text-xs font-semibold uppercase tracking-[0.15em] text-foreground/65">FAQ {index + 1}</p>
+                  {faqItems.length > 1 ? (
+                    <button
+                      type="button"
+                      onClick={() => setFaqItems((current) => current.filter((_, itemIndex) => itemIndex !== index))}
+                      className="text-xs font-semibold text-red-700 underline"
+                    >
+                      Remove
+                    </button>
+                  ) : null}
+                </div>
+                <input
+                  value={item.question}
+                  onChange={(event) => updateFaqItem(index, "question", event.target.value)}
+                  placeholder="Question"
+                  className="mb-2 w-full rounded-md border border-black/10 px-3 py-2 text-sm outline-none focus:border-black/30"
+                />
+                <textarea
+                  value={item.answer}
+                  onChange={(event) => updateFaqItem(index, "answer", event.target.value)}
+                  rows={3}
+                  placeholder="Answer"
+                  className="w-full rounded-md border border-black/10 px-3 py-2 text-sm outline-none focus:border-black/30"
+                />
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section
+          id="field-section-contact_group"
+          className={`rounded-xl bg-white p-5 shadow-sm ${activeFieldKey === "contact_group" ? "ring-2 ring-primary/60" : ""}`}
+        >
+          <p className="mb-3 text-sm font-semibold">Contact details</p>
+          <p className="mb-4 text-xs text-foreground/65">
+            These fields appear in the contact section. No special formatting needed.
+          </p>
+
+          <label htmlFor="contact-group-phone" className="mb-2 block text-xs font-semibold uppercase tracking-[0.12em] text-foreground/70">
+            Phone
+          </label>
+          <input
+            id="contact-group-phone"
+            value={contactGroup.phone}
+            onChange={(event) => updateContactField("phone", event.target.value)}
+            placeholder="e.g. +44 7700 900123"
+            className="mb-3 w-full rounded-md border border-black/10 px-3 py-2 text-sm outline-none focus:border-black/30"
+          />
+
+          <label htmlFor="contact-group-email" className="mb-2 block text-xs font-semibold uppercase tracking-[0.12em] text-foreground/70">
+            Email
+          </label>
+          <input
+            id="contact-group-email"
+            value={contactGroup.email}
+            onChange={(event) => updateContactField("email", event.target.value)}
+            placeholder="e.g. hello@accessibleyogahut.com"
+            className="mb-3 w-full rounded-md border border-black/10 px-3 py-2 text-sm outline-none focus:border-black/30"
+          />
+
+          <label htmlFor="contact-group-address-1" className="mb-2 block text-xs font-semibold uppercase tracking-[0.12em] text-foreground/70">
+            Address line 1
+          </label>
+          <input
+            id="contact-group-address-1"
+            value={contactGroup.address_line_1}
+            onChange={(event) => updateContactField("address_line_1", event.target.value)}
+            placeholder="e.g. Mill Hill"
+            className="mb-3 w-full rounded-md border border-black/10 px-3 py-2 text-sm outline-none focus:border-black/30"
+          />
+
+          <label htmlFor="contact-group-address-2" className="mb-2 block text-xs font-semibold uppercase tracking-[0.12em] text-foreground/70">
+            Address line 2
+          </label>
+          <input
+            id="contact-group-address-2"
+            value={contactGroup.address_line_2}
+            onChange={(event) => updateContactField("address_line_2", event.target.value)}
+            placeholder="e.g. NW7, London"
+            className="w-full rounded-md border border-black/10 px-3 py-2 text-sm outline-none focus:border-black/30"
+          />
+        </section>
+
         {imageFields.map((field) => {
           const section = sectionByKey[field.key];
           const currentPath = section?.image_path || "";
@@ -463,12 +771,35 @@ export function HomeEditor() {
                   className="mb-3 h-40 w-full rounded-md object-cover"
                 />
               ) : null}
-              <input
-                type="file"
-                accept="image/jpeg,image/png,image/webp"
-                onChange={(event) => updateImageFile(field.key, event.target.files?.[0] || null)}
-                className="mb-4 block w-full text-sm"
-              />
+              <div className="mb-4 rounded-lg border border-dashed border-black/20 bg-surface-low p-4">
+                <p className="text-sm font-medium text-foreground">Replace or add image</p>
+                <p className="mt-1 text-xs text-foreground/65">
+                  Pick a file from your computer. It is uploaded to the site when you click <strong>Save changes</strong> below.
+                </p>
+                <p className="mt-1 text-xs text-foreground/55">Formats: JPG, PNG, or WebP · max 5 MB</p>
+                <input
+                  id={`file-input-${field.key}`}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  className="sr-only"
+                  onChange={(event) => updateImageFile(field.key, event.target.files?.[0] || null)}
+                />
+                <label
+                  htmlFor={`file-input-${field.key}`}
+                  className="mt-3 inline-flex cursor-pointer rounded-md bg-primary px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90"
+                >
+                  Choose image file…
+                </label>
+                <p className="mt-3 text-xs text-foreground/75">
+                  {imageFileByKey[field.key] ? (
+                    <>
+                      <span className="font-medium text-foreground">Selected:</span> {imageFileByKey[field.key]!.name}
+                    </>
+                  ) : (
+                    <>No new file chosen — the current image above (if any) stays until you pick a file and save.</>
+                  )}
+                </p>
+              </div>
               <label htmlFor={`${field.key}_alt`} className="mb-2 block text-sm font-semibold">
                 Alt text
               </label>
