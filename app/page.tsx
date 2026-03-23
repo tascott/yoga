@@ -112,10 +112,34 @@ export default async function Home({ searchParams }: HomePageProps) {
           </ul>
           <a
             href={settings.bookingUrl || readText(sections, "booking_cta_link", "#schedule")}
-            className="ml-4 shrink-0 whitespace-nowrap rounded-full bg-primary px-5 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-white transition-colors hover:bg-primary-container"
+            className="ml-4 hidden shrink-0 whitespace-nowrap rounded-full bg-primary px-5 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-white transition-colors hover:bg-primary-container lg:inline-flex"
           >
             Book now
           </a>
+          <details className="relative lg:hidden">
+            <summary className="list-none rounded-md border border-black/10 bg-white px-3 py-2 text-xs font-semibold uppercase tracking-[0.15em] text-foreground/80">
+              Menu
+            </summary>
+            <div className="absolute right-0 top-[calc(100%+0.5rem)] w-56 rounded-xl border border-black/10 bg-[#f2f0ec] p-3 shadow-lg">
+              <div className="flex flex-col gap-1">
+                {navItems.map((item) => (
+                  <a
+                    key={`mobile-${item.href}`}
+                    href={item.href}
+                    className="rounded-md px-3 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-foreground/75 transition-colors hover:bg-white hover:text-primary"
+                  >
+                    {item.label}
+                  </a>
+                ))}
+                <a
+                  href={settings.bookingUrl || readText(sections, "booking_cta_link", "#schedule")}
+                  className="mt-2 rounded-md bg-primary px-3 py-2 text-center text-xs font-semibold uppercase tracking-[0.2em] text-white"
+                >
+                  Book now
+                </a>
+              </div>
+            </div>
+          </details>
         </nav>
       </header>
 
@@ -201,7 +225,7 @@ export default async function Home({ searchParams }: HomePageProps) {
             <div className="absolute -bottom-5 -left-5 h-20 w-20 rounded-full bg-secondary/15" />
           </div>
           <div className="md:col-span-7 md:pl-8">
-            <h2 id="about" data-edit-target="studio_heading" className="font-headline text-4xl leading-tight text-primary md:text-5xl">
+            <h2 data-edit-target="studio_heading" className="font-headline text-4xl leading-tight text-primary md:text-5xl">
               {readText(sections, "studio_heading", "The Mill Hill Studio: A Boutique Sanctuary")}
             </h2>
             <p data-edit-target="studio_body" className="mt-7 whitespace-pre-line text-lg leading-relaxed text-foreground/80">
@@ -222,8 +246,9 @@ export default async function Home({ searchParams }: HomePageProps) {
         </section>
 
         <section
+          id="about"
           data-edit-target="about_heading,about_body_primary,about_body_secondary,about_headshot_image"
-          className={`bg-[#dcdad5] py-28 ${
+          className={`scroll-mt-28 bg-[#dcdad5] py-28 ${
             isEditPreview ? "outline outline-2 outline-transparent transition hover:outline-primary/40" : ""
           }`}
         >
