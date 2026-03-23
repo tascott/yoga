@@ -54,7 +54,7 @@ export default async function Home({ searchParams }: HomePageProps) {
   const practiceCards = readJsonArray<BasicCard>(sections.practice_cards?.jsonValue);
   const faqItems = readJsonArray<FaqItem>(sections.faq_items?.jsonValue);
   const contactGroup = readJsonObject(sections.contact_group?.jsonValue);
-  const siteLogoImage = sections.site_logo_image?.imagePath || "";
+  const siteLogoImage = sections.site_logo_image?.imagePath || "/header-logo.png?v=2";
   const studioImage =
     sections.studio_image?.imagePath ||
     "https://lh3.googleusercontent.com/aida-public/AB6AXuDdZboxgcbURHnrsqPthHz4Gd2wy_oDv0ULJ4KIs4me4Ciedc-vO6V8odvXDm_VWQxRv6RvgwAXbYuR5QV1y-u6OybPOqtPPs6GiZWgwkB46weomSiq8mq5RBtGJuta3KKRrr9X_9KBTYdSlXYSn5hERbMQ-u3LJdMUrMk1ENX2I-Jp0zmSKlUshHVsiAGjC5YnbPwjZr68Ir6WOIUPw8NrkAFpBxHn214feoKPPQNlt22oMre37QzgwOs8tLDuk7jGu19Yv4BsQw";
@@ -82,26 +82,21 @@ export default async function Home({ searchParams }: HomePageProps) {
           }
         `}</style>
       ) : null}
-      <header className="fixed top-0 z-50 w-full bg-background/90 shadow-sm shadow-emerald-900/5 backdrop-blur-md">
-        <nav className="mx-auto flex w-full max-w-7xl items-center justify-between px-6 py-5">
-          <a href="#" className="flex items-center gap-3 font-headline text-2xl italic text-primary">
+      <header className="fixed top-0 z-50 w-full bg-[#f2f0ec] shadow-sm shadow-emerald-900/5 backdrop-blur-md">
+        <nav className="mx-auto flex w-full max-w-7xl items-center justify-between bg-[#f2f0ec] px-6 py-5">
+          <a href="#" className="flex items-center" aria-label="Accessible Yoga Hut home">
             <span
               data-edit-target="site_logo_image"
-              className="relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full border border-primary/25 bg-white text-[10px] font-semibold uppercase tracking-[0.15em] text-primary/70"
+              className="relative block h-14 w-[120px] shrink-0 overflow-hidden"
             >
-              {siteLogoImage ? (
-                <Image
-                  src={siteLogoImage}
-                  alt={sections.site_logo_image?.altText || "Site logo"}
-                  fill
-                  sizes="40px"
-                  className="h-full w-full object-cover"
-                />
-              ) : (
-                "Logo"
-              )}
+              <Image
+                src={siteLogoImage}
+                alt={sections.site_logo_image?.altText || "Site logo"}
+                fill
+                sizes="120px"
+                className="h-full w-full object-contain"
+              />
             </span>
-            {settings.siteName || content.pageTitle}
           </a>
           <ul className="hidden items-center gap-6 lg:flex xl:gap-8">
             {navItems.map((item) => (
