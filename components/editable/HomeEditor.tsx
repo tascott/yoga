@@ -60,6 +60,8 @@ type ContactGroup = {
   address_line_2: string;
 };
 
+type SaveMode = "auto" | "manual";
+
 function parseSimpleCards(value: unknown, fallback: SimpleCard[]): SimpleCard[] {
   if (!Array.isArray(value)) return fallback;
   const parsed = value
@@ -110,6 +112,19 @@ const imageFields = [
   { key: "about_headshot_image", label: "About headshot image" },
 ] as const;
 
+function serializeDraftState(params: {
+  formValues: Record<string, string>;
+  imageAltValues: Record<string, string>;
+  bookingUrl: string;
+  studioFeatureCards: SimpleCard[];
+  practiceCards: SimpleCard[];
+  faqItems: FaqItem[];
+  contactGroup: ContactGroup;
+  imagePaths: Record<string, string>;
+}) {
+  return JSON.stringify(params);
+}
+
 export function HomeEditor() {
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
   const [isLoading, setIsLoading] = useState(true);
@@ -137,7 +152,14 @@ export function HomeEditor() {
   const [siteSettingsId, setSiteSettingsId] = useState<string | null>(null);
   const [previewKey, setPreviewKey] = useState(0);
   const [activeFieldKey, setActiveFieldKey] = useState<string | null>(null);
+  const [saveMessage, setSaveMessage] = useState("All changes saved.");
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
+  const editorPanelRef = useRef<HTMLFormElement | null>(null);
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const saveInFlightRef = useRef(false);
+  const queuedSaveRef = useRef(false);
+  const lastSavedSnapshotRef = useRef("");
+  const saveAllChangesRef = useRef<(mode: SaveMode) => Promise<void>>(async () => {});
   const fieldLabelByKey = useMemo(() => {
     const map: Record<string, string> = {};
     editableFields.forEach((field) => {
@@ -152,6 +174,12 @@ export function HomeEditor() {
     });
     return map;
   }, []);
+
+  function getImagePathDraft(source: Record<string, SectionRow>) {
+    return Object.fromEntries(
+      imageFields.map((field) => [field.key, source[field.key]?.image_path ?? ""]),
+    );
+  }
 
   useEffect(() => {
     let isMounted = true;
@@ -230,6 +258,16 @@ export function HomeEditor() {
       setContactGroup(nextContactGroup);
       setBookingUrl(settings?.booking_url ?? "");
       setSiteSettingsId(settings?.id ?? null);
+      lastSavedSnapshotRef.current = serializeDraftState({
+        formValues: values,
+        imageAltValues: imageAltMap,
+        bookingUrl: settings?.booking_url ?? "",
+        studioFeatureCards: nextStudioCards,
+        practiceCards: nextPracticeCards,
+        faqItems: nextFaqItems,
+        contactGroup: nextContactGroup,
+        imagePaths: getImagePathDraft(sectionMap),
+      });
       setIsLoading(false);
     }
 
@@ -278,9 +316,17 @@ export function HomeEditor() {
     if (!fieldKey) return;
     setActiveFieldKey(fieldKey);
     const sectionEl = document.getElementById(`field-section-${fieldKey}`);
-    sectionEl?.scrollIntoView({ behavior: "smooth", block: "center" });
     const inputEl = sectionEl?.querySelector<HTMLInputElement | HTMLTextAreaElement>("input, textarea");
-    inputEl?.focus();
+
+    const container = editorPanelRef.current;
+    if (sectionEl && container) {
+      const targetTop = sectionEl.offsetTop - container.clientHeight / 2 + sectionEl.clientHeight / 2;
+      container.scrollTo({ top: Math.max(targetTop, 0), behavior: "smooth" });
+    } else {
+      sectionEl?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+
+    inputEl?.focus({ preventScroll: true });
   }
 
   useEffect(() => {
@@ -373,11 +419,18 @@ export function HomeEditor() {
     };
   }, [previewKey, sectionByKey, fieldLabelByKey]);
 
-  async function onSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function saveAllChanges(mode: SaveMode) {
+    if (saveInFlightRef.current) {
+      queuedSaveRef.current = true;
+      return;
+    }
+
+    saveInFlightRef.current = true;
     setIsSaving(true);
     setErrorMessage("");
-    setSuccessMessage("");
+    if (mode === "auto") {
+      setSaveMessage("Autosaving...");
+    }
 
     try {
       for (const field of editableFields) {
@@ -459,20 +512,92 @@ export function HomeEditor() {
       }
 
       if (siteSettingsId) {
-        const { error } = await supabase.from("site_settings").update({ booking_url: bookingUrl || null }).eq("id", siteSettingsId);
+        const { error } = await supabase
+          .from("site_settings")
+          .update({ booking_url: bookingUrl || null })
+          .eq("id", siteSettingsId);
         if (error) throw new Error(error.message);
       }
 
-      setSuccessMessage("Changes saved. Refresh the public page to confirm.");
+      setSuccessMessage(mode === "manual" ? "Changes saved." : "");
+      setSaveMessage(mode === "manual" ? "Saved." : "All changes saved.");
       setImageFileByKey({});
+      lastSavedSnapshotRef.current = serializeDraftState({
+        formValues,
+        imageAltValues,
+        bookingUrl,
+        studioFeatureCards,
+        practiceCards,
+        faqItems,
+        contactGroup,
+        imagePaths: getImagePathDraft(sectionByKey),
+      });
       setPreviewKey((current) => current + 1);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unable to save changes.";
       setErrorMessage(message);
+      setSaveMessage("Autosave failed.");
     } finally {
+      saveInFlightRef.current = false;
       setIsSaving(false);
+      if (queuedSaveRef.current) {
+        queuedSaveRef.current = false;
+        void saveAllChanges("auto");
+      }
     }
   }
+
+  async function onSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    await saveAllChanges("manual");
+  }
+
+  useEffect(() => {
+    saveAllChangesRef.current = saveAllChanges;
+  });
+
+  useEffect(() => {
+    if (isLoading) return;
+
+    const hasPendingFiles = Object.values(imageFileByKey).some(Boolean);
+    const currentSnapshot = serializeDraftState({
+      formValues,
+      imageAltValues,
+      bookingUrl,
+      studioFeatureCards,
+      practiceCards,
+      faqItems,
+      contactGroup,
+      imagePaths: getImagePathDraft(sectionByKey),
+    });
+    const isDirty = hasPendingFiles || currentSnapshot !== lastSavedSnapshotRef.current;
+    if (!isDirty) return;
+
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current);
+    }
+
+    saveTimerRef.current = setTimeout(() => {
+      void saveAllChangesRef.current("auto");
+    }, 900);
+
+    return () => {
+      if (saveTimerRef.current) {
+        clearTimeout(saveTimerRef.current);
+      }
+    };
+  }, [
+    isLoading,
+    formValues,
+    imageAltValues,
+    bookingUrl,
+    studioFeatureCards,
+    practiceCards,
+    faqItems,
+    contactGroup,
+    sectionByKey,
+    imageFileByKey,
+  ]);
 
   if (isLoading) {
     return (
@@ -516,7 +641,11 @@ export function HomeEditor() {
           />
         </section>
 
-        <form onSubmit={onSubmit} className="space-y-6 rounded-2xl bg-surface-low p-5">
+        <form
+          ref={editorPanelRef}
+          onSubmit={onSubmit}
+          className="space-y-6 rounded-2xl bg-surface-low p-5 lg:h-[78vh] lg:overflow-y-auto"
+        >
         {editableFields.map((field) => {
           const value = formValues[field.key] ?? "";
           const rows = field.mode === "textarea" ? 4 : 1;
@@ -849,13 +978,14 @@ export function HomeEditor() {
 
         {errorMessage ? <p className="text-sm text-red-700">{errorMessage}</p> : null}
         {successMessage ? <p className="text-sm text-emerald-700">{successMessage}</p> : null}
+        {!errorMessage ? <p className="text-xs text-foreground/60">{saveMessage}</p> : null}
 
         <button
           type="submit"
           disabled={isSaving}
           className="rounded-md bg-primary px-5 py-2 text-sm font-semibold text-white disabled:opacity-60"
         >
-          {isSaving ? "Saving..." : "Save changes"}
+          {isSaving ? "Saving..." : "Save now"}
         </button>
         </form>
       </div>
