@@ -160,6 +160,9 @@ export function HomeEditor() {
   const queuedSaveRef = useRef(false);
   const lastSavedSnapshotRef = useRef("");
   const saveAllChangesRef = useRef<(mode: SaveMode) => Promise<void>>(async () => {});
+  const sectionByKeyRef = useRef<Record<string, SectionRow>>({});
+  sectionByKeyRef.current = sectionByKey;
+
   const fieldLabelByKey = useMemo(() => {
     const map: Record<string, string> = {};
     editableFields.forEach((field) => {
@@ -249,6 +252,7 @@ export function HomeEditor() {
       const { data: settings } = await supabase.from("site_settings").select("id, booking_url").limit(1).maybeSingle();
 
       if (!isMounted) return;
+      sectionByKeyRef.current = sectionMap;
       setSectionByKey(sectionMap);
       setFormValues(values);
       setImageAltValues(imageAltMap);
@@ -463,13 +467,16 @@ export function HomeEditor() {
         if (error) throw new Error(error.message);
       }
 
+      let sectionsSnapshot: Record<string, SectionRow> = { ...sectionByKeyRef.current };
+
       for (const imageField of imageFields) {
-        const section = sectionByKey[imageField.key];
+        const section = sectionsSnapshot[imageField.key];
         if (!section) continue;
 
         const selectedFile = imageFileByKey[imageField.key];
         const nextAltText = imageAltValues[imageField.key] || null;
         let nextImagePath = section.image_path;
+        const previousPath = section.image_path;
 
         if (selectedFile) {
           if (!["image/jpeg", "image/png", "image/webp"].includes(selectedFile.type)) {
@@ -502,14 +509,26 @@ export function HomeEditor() {
 
         if (
           selectedFile &&
-          section.image_path &&
-          !section.image_path.startsWith("http://") &&
-          !section.image_path.startsWith("https://") &&
-          section.image_path !== nextImagePath
+          previousPath &&
+          !previousPath.startsWith("http://") &&
+          !previousPath.startsWith("https://") &&
+          previousPath !== nextImagePath
         ) {
-          await supabase.storage.from("site-images").remove([section.image_path]);
+          await supabase.storage.from("site-images").remove([previousPath]);
         }
+
+        sectionsSnapshot = {
+          ...sectionsSnapshot,
+          [imageField.key]: {
+            ...section,
+            image_path: nextImagePath,
+            alt_text: nextAltText,
+          },
+        };
       }
+
+      sectionByKeyRef.current = sectionsSnapshot;
+      setSectionByKey(sectionsSnapshot);
 
       if (siteSettingsId) {
         const { error } = await supabase
@@ -530,7 +549,7 @@ export function HomeEditor() {
         practiceCards,
         faqItems,
         contactGroup,
-        imagePaths: getImagePathDraft(sectionByKey),
+        imagePaths: getImagePathDraft(sectionsSnapshot),
       });
       setPreviewKey((current) => current + 1);
     } catch (error) {
@@ -630,7 +649,7 @@ export function HomeEditor() {
         </div>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_30rem]">
+      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_30rem]">
         <section className="rounded-2xl bg-white p-3 shadow-sm">
           <iframe
             key={previewKey}
@@ -644,7 +663,7 @@ export function HomeEditor() {
         <form
           ref={editorPanelRef}
           onSubmit={onSubmit}
-          className="space-y-6 rounded-2xl bg-surface-low p-5 lg:h-[78vh] lg:overflow-y-auto"
+          className="relative space-y-6 rounded-2xl bg-surface-low p-5 lg:h-[78vh] lg:overflow-y-auto"
         >
         {editableFields.map((field) => {
           const value = formValues[field.key] ?? "";
