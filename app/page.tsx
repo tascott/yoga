@@ -49,6 +49,7 @@ export default async function Home({ searchParams }: HomePageProps) {
     { href: "#schedule", label: "Schedule" },
     { href: "#contact", label: "Contact" },
     { href: "#faq", label: "FAQ" },
+    { href: "/therapy", label: "Therapy" },
   ];
   const featureCards = readJsonArray<BasicCard>(sections.studio_feature_cards?.jsonValue);
   const practiceCards = readJsonArray<BasicCard>(sections.practice_cards?.jsonValue);
@@ -247,7 +248,7 @@ export default async function Home({ searchParams }: HomePageProps) {
 
         <section
           id="about"
-          data-edit-target="about_heading,about_body_primary,about_body_secondary,about_headshot_image"
+          data-edit-target="about_heading,about_body_primary,about_body_secondary,about_support_blurb,about_support_cta_text,about_support_cta_link,about_headshot_image"
           className={`scroll-mt-28 bg-[#dcdad5] py-28 ${
             isEditPreview ? "outline outline-2 outline-transparent transition hover:outline-primary/40" : ""
           }`}
@@ -264,6 +265,20 @@ export default async function Home({ searchParams }: HomePageProps) {
               <p data-edit-target="about_body_secondary" className="mt-6 whitespace-pre-line leading-relaxed text-foreground/80">
                 {readText(sections, "about_body_secondary")}
               </p>
+              <p data-edit-target="about_support_blurb" className="mt-7 max-w-xl text-sm leading-relaxed text-foreground/75">
+                {readText(
+                  sections,
+                  "about_support_blurb",
+                  "If you would like to know more about one-to-one therapeutic support, you can explore the therapy page.",
+                )}
+              </p>
+              <a
+                data-edit-target="about_support_cta_text,about_support_cta_link"
+                href={readText(sections, "about_support_cta_link", "/therapy")}
+                className="mt-4 inline-flex rounded-xl bg-primary px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-primary-container"
+              >
+                {readText(sections, "about_support_cta_text", "Explore therapy")}
+              </a>
             </div>
             <div className="md:col-span-2">
               <div

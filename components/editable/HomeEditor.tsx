@@ -33,6 +33,9 @@ const editableFields: EditableField[] = [
   { key: "about_heading", label: "About heading", mode: "text" },
   { key: "about_body_primary", label: "About body primary", mode: "textarea" },
   { key: "about_body_secondary", label: "About body secondary", mode: "textarea" },
+  { key: "about_support_blurb", label: "About support blurb", mode: "textarea" },
+  { key: "about_support_cta_text", label: "About support button text", mode: "text" },
+  { key: "about_support_cta_link", label: "About support button link", mode: "text" },
   { key: "practice_heading", label: "Practice heading", mode: "text" },
   { key: "schedule_heading", label: "Schedule heading", mode: "text" },
   { key: "schedule_intro", label: "Schedule intro", mode: "textarea" },
@@ -111,6 +114,36 @@ const imageFields = [
   { key: "studio_image", label: "Studio image" },
   { key: "about_headshot_image", label: "About headshot image" },
 ] as const;
+
+const requiredHomeSections: Array<{
+  section_key: string;
+  label: string;
+  kind: string;
+  sort_order: number;
+  text_value: string | null;
+}> = [
+  {
+    section_key: "about_support_blurb",
+    label: "About support blurb",
+    kind: "textarea",
+    sort_order: 145,
+    text_value: "If you would like to know more about one-to-one therapeutic support, you can explore the therapy page.",
+  },
+  {
+    section_key: "about_support_cta_text",
+    label: "About support button text",
+    kind: "text",
+    sort_order: 146,
+    text_value: "Explore therapy",
+  },
+  {
+    section_key: "about_support_cta_link",
+    label: "About support button link",
+    kind: "link",
+    sort_order: 147,
+    text_value: "/therapy",
+  },
+];
 
 function serializeDraftState(params: {
   formValues: Record<string, string>;
@@ -204,16 +237,54 @@ export function HomeEditor() {
         return;
       }
 
-      const { data: sections, error: sectionsError } = await supabase
-        .from("page_sections")
-        .select("id, section_key, label, kind, text_value, json_value, image_path, alt_text")
-        .eq("page_id", page.id);
+      const fetchSections = () =>
+        supabase
+          .from("page_sections")
+          .select("id, section_key, label, kind, text_value, json_value, image_path, alt_text")
+          .eq("page_id", page.id);
+
+      let { data: sections, error: sectionsError } = await fetchSections();
 
       if (!isMounted) return;
       if (sectionsError) {
         setErrorMessage(sectionsError.message);
         setIsLoading(false);
         return;
+      }
+
+      const existingKeys = new Set((sections || []).map((section) => section.section_key));
+      const missingSections = requiredHomeSections.filter((section) => !existingKeys.has(section.section_key));
+      if (missingSections.length) {
+        const { error: insertError } = await supabase.from("page_sections").insert(
+          missingSections.map((section) => ({
+            page_id: page.id,
+            section_key: section.section_key,
+            label: section.label,
+            kind: section.kind,
+            sort_order: section.sort_order,
+            text_value: section.text_value,
+            is_active: true,
+            is_required: false,
+          })),
+        );
+
+        if (!isMounted) return;
+        if (insertError) {
+          setErrorMessage(insertError.message);
+          setIsLoading(false);
+          return;
+        }
+
+        const refetchResult = await fetchSections();
+        sections = refetchResult.data;
+        sectionsError = refetchResult.error;
+
+        if (!isMounted) return;
+        if (sectionsError) {
+          setErrorMessage(sectionsError.message);
+          setIsLoading(false);
+          return;
+        }
       }
 
       const sectionMap: Record<string, SectionRow> = {};
