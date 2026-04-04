@@ -23,30 +23,96 @@ type EditableField = {
   mode: "text" | "textarea";
 };
 
-const editableFields: EditableField[] = [
-  { key: "hero_heading", label: "Hero heading", mode: "text" },
-  { key: "hero_subheading", label: "Hero subheading", mode: "textarea" },
-  { key: "hero_primary_cta_text", label: "Hero CTA text", mode: "text" },
-  { key: "hero_primary_cta_link", label: "Hero CTA link", mode: "text" },
-  { key: "studio_heading", label: "Studio heading", mode: "text" },
-  { key: "studio_body", label: "Studio body", mode: "textarea" },
-  { key: "about_heading", label: "About heading", mode: "text" },
-  { key: "about_body_primary", label: "About body primary", mode: "textarea" },
-  { key: "about_body_secondary", label: "About body secondary", mode: "textarea" },
-  { key: "about_support_blurb", label: "About support blurb", mode: "textarea" },
-  { key: "about_support_cta_text", label: "About support button text", mode: "text" },
-  { key: "about_support_cta_link", label: "About support button link", mode: "text" },
-  { key: "practice_heading", label: "Practice heading", mode: "text" },
-  { key: "schedule_heading", label: "Schedule heading", mode: "text" },
-  { key: "schedule_intro", label: "Schedule intro", mode: "textarea" },
-  { key: "schedule_sidebar_heading", label: "Schedule sidebar heading", mode: "text" },
-  { key: "schedule_sidebar_text", label: "Schedule sidebar text", mode: "textarea" },
-  { key: "contact_heading", label: "Contact heading", mode: "text" },
-  { key: "contact_intro", label: "Contact intro", mode: "textarea" },
-  { key: "sanctuary_heading", label: "Our Sanctuary heading", mode: "text" },
-  { key: "sanctuary_body", label: "Our Sanctuary intro", mode: "textarea" },
-  { key: "faq_heading", label: "FAQ heading", mode: "text" },
+type EditableFieldGroup = {
+  id: string;
+  title: string;
+  description?: string;
+  fields: EditableField[];
+};
+
+/** Debounced autosave: wait for a typing pause before writing to Supabase. */
+const AUTOSAVE_DEBOUNCE_MS = 1600;
+
+const editableFieldGroups: EditableFieldGroup[] = [
+  {
+    id: "hero",
+    title: "Hero",
+    description:
+      "The top of the home page: main headline, two short lines under the title (optional emphasis), intro paragraph, and primary buttons.",
+    fields: [
+      { key: "hero_heading", label: "Hero heading", mode: "text" },
+      { key: "hero_tagline_1", label: "Hero tagline (line 1, under title)", mode: "text" },
+      { key: "hero_tagline_2", label: "Hero tagline (line 2)", mode: "text" },
+      { key: "hero_subheading", label: "Hero subheading", mode: "textarea" },
+      { key: "hero_primary_cta_text", label: "Hero CTA text", mode: "text" },
+      { key: "hero_primary_cta_link", label: "Hero CTA link", mode: "text" },
+    ],
+  },
+  {
+    id: "spotlight",
+    title: "Spotlight band (optional)",
+    description:
+      "Text in these fields adds a separate full-width section on the home page after the first quote and before Studio. Enter at least the main heading or the body text to show it; if both are empty, the section stays hidden. Use it for retreats, workshops, early-bird offers, or anything you want to highlight.",
+    fields: [
+      { key: "spotlight_kicker", label: "Spotlight: kicker (small caps, optional)", mode: "text" },
+      { key: "spotlight_heading", label: "Spotlight: main heading (leave empty to hide block)", mode: "text" },
+      { key: "spotlight_subheading", label: "Spotlight: subheading (e.g. dates)", mode: "text" },
+      { key: "spotlight_body", label: "Spotlight: body text", mode: "textarea" },
+      { key: "spotlight_cta_text", label: "Spotlight: button text", mode: "text" },
+      { key: "spotlight_cta_link", label: "Spotlight: button link", mode: "text" },
+    ],
+  },
+  {
+    id: "studio",
+    title: "Studio",
+    fields: [
+      { key: "studio_heading", label: "Studio heading", mode: "text" },
+      { key: "studio_body", label: "Studio body", mode: "textarea" },
+    ],
+  },
+  {
+    id: "about",
+    title: "About",
+    fields: [
+      { key: "about_heading", label: "About heading", mode: "text" },
+      { key: "about_body_primary", label: "About body primary", mode: "textarea" },
+      { key: "about_body_secondary", label: "About body secondary", mode: "textarea" },
+      { key: "about_support_blurb", label: "About support blurb", mode: "textarea" },
+      { key: "about_support_cta_text", label: "About support button text", mode: "text" },
+      { key: "about_support_cta_link", label: "About support button link", mode: "text" },
+    ],
+  },
+  {
+    id: "practice-schedule",
+    title: "Practice & schedule",
+    description: "Headings and sidebar copy around the class schedule and Acuity embed.",
+    fields: [
+      { key: "practice_heading", label: "Practice heading", mode: "text" },
+      { key: "schedule_heading", label: "Schedule heading", mode: "text" },
+      { key: "schedule_intro", label: "Schedule intro", mode: "textarea" },
+      { key: "schedule_sidebar_heading", label: "Schedule sidebar heading", mode: "text" },
+      { key: "schedule_sidebar_text", label: "Schedule sidebar text", mode: "textarea" },
+    ],
+  },
+  {
+    id: "contact-sanctuary",
+    title: "Contact & Our Sanctuary",
+    description: "Contact block intro and the sanctuary sidebar text. Images are set in the image panels further down.",
+    fields: [
+      { key: "contact_heading", label: "Contact heading", mode: "text" },
+      { key: "contact_intro", label: "Contact intro", mode: "textarea" },
+      { key: "sanctuary_heading", label: "Our Sanctuary heading", mode: "text" },
+      { key: "sanctuary_body", label: "Our Sanctuary intro", mode: "textarea" },
+    ],
+  },
+  {
+    id: "faq",
+    title: "FAQ",
+    fields: [{ key: "faq_heading", label: "FAQ heading", mode: "text" }],
+  },
 ];
+
+const editableFields = editableFieldGroups.flatMap((group) => group.fields);
 
 type SimpleCard = {
   title: string;
@@ -126,6 +192,62 @@ const requiredHomeSections: Array<{
   text_value: string | null;
 }> = [
   {
+    section_key: "hero_tagline_1",
+    label: "Hero tagline line 1",
+    kind: "text",
+    sort_order: 11,
+    text_value: "Inclusive, accessible yoga",
+  },
+  {
+    section_key: "hero_tagline_2",
+    label: "Hero tagline line 2",
+    kind: "text",
+    sort_order: 12,
+    text_value: "Mill Hill studio · Online classes",
+  },
+  {
+    section_key: "spotlight_kicker",
+    label: "Spotlight kicker",
+    kind: "text",
+    sort_order: 18,
+    text_value: "",
+  },
+  {
+    section_key: "spotlight_heading",
+    label: "Spotlight heading",
+    kind: "text",
+    sort_order: 19,
+    text_value: "",
+  },
+  {
+    section_key: "spotlight_subheading",
+    label: "Spotlight subheading",
+    kind: "text",
+    sort_order: 20,
+    text_value: "",
+  },
+  {
+    section_key: "spotlight_body",
+    label: "Spotlight body",
+    kind: "textarea",
+    sort_order: 21,
+    text_value: "",
+  },
+  {
+    section_key: "spotlight_cta_text",
+    label: "Spotlight CTA text",
+    kind: "text",
+    sort_order: 22,
+    text_value: "",
+  },
+  {
+    section_key: "spotlight_cta_link",
+    label: "Spotlight CTA link",
+    kind: "text",
+    sort_order: 23,
+    text_value: "",
+  },
+  {
     section_key: "about_support_blurb",
     label: "About support blurb",
     kind: "textarea",
@@ -188,6 +310,9 @@ function serializeDraftState(params: {
   formValues: Record<string, string>;
   imageAltValues: Record<string, string>;
   bookingUrl: string;
+  instagramUrl: string;
+  facebookUrl: string;
+  linkedinUrl: string;
   acuityIframeSrc: string;
   therapyAcuityIframeSrc: string;
   studioFeatureCards: SimpleCard[];
@@ -223,6 +348,9 @@ export function HomeEditor() {
     address_line_2: "",
   });
   const [bookingUrl, setBookingUrl] = useState("");
+  const [instagramUrl, setInstagramUrl] = useState("");
+  const [facebookUrl, setFacebookUrl] = useState("");
+  const [linkedinUrl, setLinkedinUrl] = useState("");
   const [acuityIframeSrc, setAcuityIframeSrc] = useState("");
   const [therapyAcuityIframeSrc, setTherapyAcuityIframeSrc] = useState("");
   const [siteSettingsId, setSiteSettingsId] = useState<string | null>(null);
@@ -365,7 +493,7 @@ export function HomeEditor() {
 
       const { data: settings } = await supabase
         .from("site_settings")
-        .select("id, booking_url, acuity_iframe_src, therapy_acuity_iframe_src")
+        .select("id, booking_url, instagram_url, facebook_url, linkedin_url, acuity_iframe_src, therapy_acuity_iframe_src")
         .limit(1)
         .maybeSingle();
 
@@ -379,6 +507,9 @@ export function HomeEditor() {
       setFaqItems(nextFaqItems);
       setContactGroup(nextContactGroup);
       setBookingUrl(settings?.booking_url ?? "");
+      setInstagramUrl(settings?.instagram_url ?? "");
+      setFacebookUrl(settings?.facebook_url ?? "");
+      setLinkedinUrl(settings?.linkedin_url ?? "");
       setAcuityIframeSrc(settings?.acuity_iframe_src ?? "");
       setTherapyAcuityIframeSrc(settings?.therapy_acuity_iframe_src ?? "");
       setSiteSettingsId(settings?.id ?? null);
@@ -386,6 +517,9 @@ export function HomeEditor() {
         formValues: values,
         imageAltValues: imageAltMap,
         bookingUrl: settings?.booking_url ?? "",
+        instagramUrl: settings?.instagram_url ?? "",
+        facebookUrl: settings?.facebook_url ?? "",
+        linkedinUrl: settings?.linkedin_url ?? "",
         acuityIframeSrc: settings?.acuity_iframe_src ?? "",
         therapyAcuityIframeSrc: settings?.therapy_acuity_iframe_src ?? "",
         studioFeatureCards: nextStudioCards,
@@ -657,6 +791,9 @@ export function HomeEditor() {
           .from("site_settings")
           .update({
             booking_url: bookingUrl || null,
+            instagram_url: instagramUrl.trim() || null,
+            facebook_url: facebookUrl.trim() || null,
+            linkedin_url: linkedinUrl.trim() || null,
             acuity_iframe_src: acuityIframeSrc.trim() || null,
             therapy_acuity_iframe_src: therapyAcuityIframeSrc.trim() || null,
           })
@@ -671,6 +808,9 @@ export function HomeEditor() {
         formValues,
         imageAltValues,
         bookingUrl,
+        instagramUrl,
+        facebookUrl,
+        linkedinUrl,
         acuityIframeSrc,
         therapyAcuityIframeSrc,
         studioFeatureCards,
@@ -679,7 +819,9 @@ export function HomeEditor() {
         contactGroup,
         imagePaths: getImagePathDraft(sectionsSnapshot),
       });
-      setPreviewKey((current) => current + 1);
+      if (mode === "manual") {
+        setPreviewKey((current) => current + 1);
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unable to save changes.";
       setErrorMessage(message);
@@ -711,6 +853,9 @@ export function HomeEditor() {
       formValues,
       imageAltValues,
       bookingUrl,
+      instagramUrl,
+      facebookUrl,
+      linkedinUrl,
       acuityIframeSrc,
       therapyAcuityIframeSrc,
       studioFeatureCards,
@@ -728,7 +873,7 @@ export function HomeEditor() {
 
     saveTimerRef.current = setTimeout(() => {
       void saveAllChangesRef.current("auto");
-    }, 900);
+    }, AUTOSAVE_DEBOUNCE_MS);
 
     return () => {
       if (saveTimerRef.current) {
@@ -740,6 +885,9 @@ export function HomeEditor() {
     formValues,
     imageAltValues,
     bookingUrl,
+    instagramUrl,
+    facebookUrl,
+    linkedinUrl,
     acuityIframeSrc,
     therapyAcuityIframeSrc,
     studioFeatureCards,
@@ -766,16 +914,21 @@ export function HomeEditor() {
           <p className="mt-2 text-sm text-foreground/75">
             Visual preview on the left, fixed-content editor on the right.
           </p>
+          <p className="mt-2 max-w-xl text-xs leading-relaxed text-foreground/65">
+            Autosave runs after you pause typing (~{AUTOSAVE_DEBOUNCE_MS / 1000}s). It updates the database without reloading the
+            preview, so rapid edits won&apos;t flash the iframe. Use <span className="font-medium">Refresh preview</span> or{" "}
+            <span className="font-medium">Save now</span> to reload the preview with the latest content.
+          </p>
         </div>
         <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={() => setPreviewKey((current) => current + 1)}
-            className="rounded-md border border-black/10 bg-white px-4 py-2 text-sm font-medium"
+            className="cursor-pointer rounded-md border border-black/10 bg-white px-4 py-2 text-sm font-medium"
           >
             Refresh preview
           </button>
-          <Link href="/" target="_blank" className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white">
+          <Link href="/" target="_blank" className="cursor-pointer rounded-md bg-primary px-4 py-2 text-sm font-medium text-white">
             Open public page
           </Link>
         </div>
@@ -797,38 +950,53 @@ export function HomeEditor() {
           onSubmit={onSubmit}
           className="relative space-y-6 rounded-2xl bg-surface-low p-5 lg:h-[78vh] lg:overflow-y-auto"
         >
-        {editableFields.map((field) => {
-          const value = formValues[field.key] ?? "";
-          const rows = field.mode === "textarea" ? 4 : 1;
+        {editableFieldGroups.map((group) => (
+          <div
+            key={group.id}
+            className="rounded-2xl border border-black/10 bg-[#f8f6f2] p-4 shadow-sm ring-1 ring-black/5"
+          >
+            <div className="mb-4 border-b border-black/8 pb-3">
+              <h3 className="text-xs font-bold uppercase tracking-[0.18em] text-primary">{group.title}</h3>
+              {group.description ? (
+                <p className="mt-2 text-xs leading-relaxed text-foreground/72">{group.description}</p>
+              ) : null}
+            </div>
+            <div className="space-y-5">
+              {group.fields.map((field) => {
+                const value = formValues[field.key] ?? "";
+                const rows = field.mode === "textarea" ? 4 : 1;
 
-          return (
-            <section
-              id={`field-section-${field.key}`}
-              key={field.key}
-              className={`rounded-xl bg-white p-5 shadow-sm ${activeFieldKey === field.key ? "ring-2 ring-primary/60" : ""}`}
-            >
-              <label htmlFor={field.key} className="mb-2 block text-sm font-semibold">
-                {field.label}
-              </label>
-              {field.mode === "text" ? (
-                <input
-                  id={field.key}
-                  value={value}
-                  onChange={(event) => updateFieldValue(field.key, event.target.value)}
-                  className="w-full rounded-md border border-black/10 px-3 py-2 text-sm outline-none focus:border-black/30"
-                />
-              ) : (
-                <textarea
-                  id={field.key}
-                  value={value}
-                  rows={rows}
-                  onChange={(event) => updateFieldValue(field.key, event.target.value)}
-                  className="w-full rounded-md border border-black/10 px-3 py-2 text-sm outline-none focus:border-black/30"
-                />
-              )}
-            </section>
-          );
-        })}
+                return (
+                  <section
+                    id={`field-section-${field.key}`}
+                    key={field.key}
+                    className={`rounded-xl bg-white p-5 shadow-sm ring-1 ring-black/5 ${activeFieldKey === field.key ? "ring-2 ring-primary/60" : ""}`}
+                  >
+                    <label htmlFor={field.key} className="mb-2 block text-sm font-semibold">
+                      {field.label}
+                    </label>
+                    {field.mode === "text" ? (
+                      <input
+                        id={field.key}
+                        value={value}
+                        onChange={(event) => updateFieldValue(field.key, event.target.value)}
+                        className="w-full rounded-md border border-black/10 px-3 py-2 text-sm outline-none focus:border-black/30"
+                      />
+                    ) : (
+                      <textarea
+                        id={field.key}
+                        value={value}
+                        rows={rows}
+                        onChange={(event) => updateFieldValue(field.key, event.target.value)}
+                        className="w-full rounded-md border border-black/10 px-3 py-2 text-sm outline-none focus:border-black/30"
+                      />
+                    )}
+                  </section>
+                );
+              })}
+            </div>
+          </div>
+        ))}
 
         <section
           id="field-section-studio_feature_cards"
@@ -1125,6 +1293,49 @@ export function HomeEditor() {
             placeholder="https://..."
             className="w-full rounded-md border border-black/10 px-3 py-2 text-sm outline-none focus:border-black/30"
           />
+        </section>
+
+        <section className="rounded-xl bg-white p-5 shadow-sm space-y-4">
+          <h3 className="text-sm font-semibold text-primary">Social links (site-wide)</h3>
+          <p className="text-xs text-foreground/65">
+            Used in the Contact area (“Our Sanctuary” pills), footer, and anywhere else social icons appear. Leave blank to hide a network there.
+          </p>
+          <div>
+            <label htmlFor="site_instagram_url" className="mb-1 block text-xs font-semibold uppercase tracking-[0.1em] text-foreground/70">
+              Instagram
+            </label>
+            <input
+              id="site_instagram_url"
+              value={instagramUrl}
+              onChange={(event) => setInstagramUrl(event.target.value)}
+              placeholder="https://instagram.com/..."
+              className="w-full rounded-md border border-black/10 px-3 py-2 text-sm outline-none focus:border-black/30"
+            />
+          </div>
+          <div>
+            <label htmlFor="site_facebook_url" className="mb-1 block text-xs font-semibold uppercase tracking-[0.1em] text-foreground/70">
+              Facebook
+            </label>
+            <input
+              id="site_facebook_url"
+              value={facebookUrl}
+              onChange={(event) => setFacebookUrl(event.target.value)}
+              placeholder="https://facebook.com/..."
+              className="w-full rounded-md border border-black/10 px-3 py-2 text-sm outline-none focus:border-black/30"
+            />
+          </div>
+          <div>
+            <label htmlFor="site_linkedin_url" className="mb-1 block text-xs font-semibold uppercase tracking-[0.1em] text-foreground/70">
+              LinkedIn
+            </label>
+            <input
+              id="site_linkedin_url"
+              value={linkedinUrl}
+              onChange={(event) => setLinkedinUrl(event.target.value)}
+              placeholder="https://linkedin.com/in/..."
+              className="w-full rounded-md border border-black/10 px-3 py-2 text-sm outline-none focus:border-black/30"
+            />
+          </div>
         </section>
 
         <section className="rounded-xl bg-white p-5 shadow-sm space-y-4">

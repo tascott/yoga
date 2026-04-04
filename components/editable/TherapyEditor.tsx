@@ -21,15 +21,41 @@ type EditableField = {
   mode: "text" | "textarea";
 };
 
-const editableFields: EditableField[] = [
-  { key: "therapy_heading", label: "Therapy heading", mode: "text" },
-  { key: "therapy_body_primary", label: "Therapy body (paragraph 1)", mode: "textarea" },
-  { key: "therapy_body_secondary", label: "Therapy body (paragraph 2)", mode: "textarea" },
-  { key: "therapy_schedule_heading", label: "Therapy booking section heading", mode: "text" },
-  { key: "therapy_schedule_intro", label: "Therapy booking intro", mode: "textarea" },
-  { key: "therapy_schedule_sidebar_heading", label: "Therapy booking sidebar heading", mode: "text" },
-  { key: "therapy_schedule_sidebar_text", label: "Therapy booking sidebar text", mode: "textarea" },
+type EditableFieldGroup = {
+  id: string;
+  title: string;
+  description?: string;
+  fields: EditableField[];
+};
+
+const AUTOSAVE_DEBOUNCE_MS = 1600;
+
+const editableFieldGroups: EditableFieldGroup[] = [
+  {
+    id: "therapy-main",
+    title: "Therapy page intro",
+    description: "The main heading and two columns of body copy beside the portrait image.",
+    fields: [
+      { key: "therapy_heading", label: "Therapy heading", mode: "text" },
+      { key: "therapy_body_primary", label: "Therapy body (paragraph 1)", mode: "textarea" },
+      { key: "therapy_body_secondary", label: "Therapy body (paragraph 2)", mode: "textarea" },
+    ],
+  },
+  {
+    id: "therapy-booking",
+    title: "Booking section (lower page)",
+    description:
+      "These fields control the text around the Acuity scheduler on the therapy page (heading, intro, and sidebar). The embed URLs live in the site settings block below.",
+    fields: [
+      { key: "therapy_schedule_heading", label: "Therapy booking section heading", mode: "text" },
+      { key: "therapy_schedule_intro", label: "Therapy booking intro", mode: "textarea" },
+      { key: "therapy_schedule_sidebar_heading", label: "Therapy booking sidebar heading", mode: "text" },
+      { key: "therapy_schedule_sidebar_text", label: "Therapy booking sidebar text", mode: "textarea" },
+    ],
+  },
 ];
+
+const editableFields = editableFieldGroups.flatMap((g) => g.fields);
 
 const requiredSections: Array<{
   section_key: string;
@@ -440,7 +466,9 @@ export function TherapyEditor() {
         acuityIframeSrc,
         therapyAcuityIframeSrc,
       });
-      setPreviewKey((current) => current + 1);
+      if (mode === "manual") {
+        setPreviewKey((current) => current + 1);
+      }
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Unable to save changes.");
       setSaveMessage("Autosave failed.");
@@ -474,7 +502,7 @@ export function TherapyEditor() {
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(() => {
       void saveAllChangesRef.current("auto");
-    }, 900);
+    }, AUTOSAVE_DEBOUNCE_MS);
     return () => {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     };
@@ -507,16 +535,21 @@ export function TherapyEditor() {
         <div>
           <h1 className="font-headline text-4xl text-primary">Edit Therapy Content</h1>
           <p className="mt-2 text-sm text-foreground/75">Visual preview on the left, fixed-content editor on the right.</p>
+          <p className="mt-2 max-w-xl text-xs leading-relaxed text-foreground/65">
+            Autosave runs after you pause typing (~{AUTOSAVE_DEBOUNCE_MS / 1000}s). It saves to the database without reloading the
+            preview. Use <span className="font-medium">Refresh preview</span> or submit <span className="font-medium">Save now</span>{" "}
+            to reload the iframe.
+          </p>
         </div>
         <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={() => setPreviewKey((current) => current + 1)}
-            className="rounded-md border border-black/10 bg-white px-4 py-2 text-sm font-medium"
+            className="cursor-pointer rounded-md border border-black/10 bg-white px-4 py-2 text-sm font-medium"
           >
             Refresh preview
           </button>
-          <Link href="/therapy" target="_blank" className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white">
+          <Link href="/therapy" target="_blank" className="cursor-pointer rounded-md bg-primary px-4 py-2 text-sm font-medium text-white">
             Open public page
           </Link>
         </div>
@@ -534,36 +567,51 @@ export function TherapyEditor() {
         </section>
 
         <form ref={editorPanelRef} onSubmit={onSubmit} className="relative space-y-6 rounded-2xl bg-surface-low p-5 lg:h-[78vh] lg:overflow-y-auto">
-          {editableFields.map((field) => {
-            const value = formValues[field.key] ?? "";
-            return (
-              <section
-                id={`therapy-field-section-${field.key}`}
-                key={field.key}
-                className={`rounded-xl bg-white p-5 shadow-sm ${activeFieldKey === field.key ? "ring-2 ring-primary/60" : ""}`}
-              >
-                <label htmlFor={`therapy-${field.key}`} className="mb-2 block text-sm font-semibold">
-                  {field.label}
-                </label>
-                {field.mode === "text" ? (
-                  <input
-                    id={`therapy-${field.key}`}
-                    value={value}
-                    onChange={(event) => setFormValues((current) => ({ ...current, [field.key]: event.target.value }))}
-                    className="w-full rounded-md border border-black/10 px-3 py-2 text-sm outline-none focus:border-black/30"
-                  />
-                ) : (
-                  <textarea
-                    id={`therapy-${field.key}`}
-                    rows={5}
-                    value={value}
-                    onChange={(event) => setFormValues((current) => ({ ...current, [field.key]: event.target.value }))}
-                    className="w-full rounded-md border border-black/10 px-3 py-2 text-sm outline-none focus:border-black/30"
-                  />
-                )}
-              </section>
-            );
-          })}
+          {editableFieldGroups.map((group) => (
+            <div
+              key={group.id}
+              className="rounded-2xl border border-black/10 bg-[#f8f6f2] p-4 shadow-sm ring-1 ring-black/5"
+            >
+              <div className="mb-4 border-b border-black/8 pb-3">
+                <h3 className="text-xs font-bold uppercase tracking-[0.18em] text-primary">{group.title}</h3>
+                {group.description ? (
+                  <p className="mt-2 text-xs leading-relaxed text-foreground/72">{group.description}</p>
+                ) : null}
+              </div>
+              <div className="space-y-5">
+                {group.fields.map((field) => {
+                  const value = formValues[field.key] ?? "";
+                  return (
+                    <section
+                      id={`therapy-field-section-${field.key}`}
+                      key={field.key}
+                      className={`rounded-xl bg-white p-5 shadow-sm ring-1 ring-black/5 ${activeFieldKey === field.key ? "ring-2 ring-primary/60" : ""}`}
+                    >
+                      <label htmlFor={`therapy-${field.key}`} className="mb-2 block text-sm font-semibold">
+                        {field.label}
+                      </label>
+                      {field.mode === "text" ? (
+                        <input
+                          id={`therapy-${field.key}`}
+                          value={value}
+                          onChange={(event) => setFormValues((current) => ({ ...current, [field.key]: event.target.value }))}
+                          className="w-full rounded-md border border-black/10 px-3 py-2 text-sm outline-none focus:border-black/30"
+                        />
+                      ) : (
+                        <textarea
+                          id={`therapy-${field.key}`}
+                          rows={5}
+                          value={value}
+                          onChange={(event) => setFormValues((current) => ({ ...current, [field.key]: event.target.value }))}
+                          className="w-full rounded-md border border-black/10 px-3 py-2 text-sm outline-none focus:border-black/30"
+                        />
+                      )}
+                    </section>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
 
           <section
             id={`therapy-field-section-${imageField.key}`}

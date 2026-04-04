@@ -155,7 +155,7 @@ export default async function Home({ searchParams }: HomePageProps) {
       <main>
         <section
           id="hero"
-          data-edit-target="hero_heading,hero_subheading,hero_primary_cta_text,hero_primary_cta_link,hero_image"
+          data-edit-target="hero_heading,hero_tagline_1,hero_tagline_2,hero_subheading,hero_primary_cta_text,hero_primary_cta_link,hero_image"
           className={`relative flex min-h-screen items-center overflow-hidden pt-20 ${
             isEditPreview ? "outline outline-2 outline-transparent transition hover:outline-primary/40" : ""
           }`}
@@ -179,6 +179,24 @@ export default async function Home({ searchParams }: HomePageProps) {
             >
               {readText(sections, "hero_heading", "Yoga for Everyone, Wherever You Are.")}
             </h1>
+            {readText(sections, "hero_tagline_1", "Inclusive, accessible yoga").trim() ||
+            readText(sections, "hero_tagline_2", "Mill Hill studio · Online classes").trim() ? (
+              <div
+                className="mt-6 max-w-3xl space-y-1 border-l-4 border-secondary/50 pl-5"
+                data-edit-target="hero_tagline_1,hero_tagline_2"
+              >
+                {readText(sections, "hero_tagline_1", "Inclusive, accessible yoga").trim() ? (
+                  <p className="font-headline text-xl font-medium tracking-wide text-primary md:text-2xl">
+                    {readText(sections, "hero_tagline_1", "Inclusive, accessible yoga")}
+                  </p>
+                ) : null}
+                {readText(sections, "hero_tagline_2", "Mill Hill studio · Online classes").trim() ? (
+                  <p className="font-headline text-xl font-medium tracking-wide text-primary/85 md:text-2xl">
+                    {readText(sections, "hero_tagline_2", "Mill Hill studio · Online classes")}
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
             <p data-edit-target="hero_subheading" className="mt-8 max-w-2xl text-xl leading-relaxed text-foreground/80">
               {readText(
                 sections,
@@ -209,6 +227,62 @@ export default async function Home({ searchParams }: HomePageProps) {
             <p className="mt-6 text-xs font-semibold uppercase tracking-[0.3em] text-secondary">— B.K.S. Iyengar</p>
           </div>
         </section>
+
+        {readText(sections, "spotlight_heading").trim() || readText(sections, "spotlight_body").trim() ? (
+          <section
+            id="spotlight"
+            data-edit-target="spotlight_kicker,spotlight_heading,spotlight_subheading,spotlight_body,spotlight_cta_text,spotlight_cta_link"
+            className={`border-y border-primary/15 bg-[#eae6df] py-16 md:py-24 ${
+              isEditPreview ? "outline outline-2 outline-transparent transition hover:outline-primary/40" : ""
+            }`}
+          >
+            <div className="mx-auto max-w-7xl px-6">
+              {readText(sections, "spotlight_kicker").trim() ? (
+                <p
+                  data-edit-target="spotlight_kicker"
+                  className="text-xs font-semibold uppercase tracking-[0.28em] text-secondary"
+                >
+                  {readText(sections, "spotlight_kicker")}
+                </p>
+              ) : null}
+              <h2
+                data-edit-target="spotlight_heading"
+                className="mt-2 font-headline text-3xl leading-tight text-primary md:text-5xl"
+              >
+                {readText(sections, "spotlight_heading")}
+              </h2>
+              {readText(sections, "spotlight_subheading").trim() ? (
+                <p
+                  data-edit-target="spotlight_subheading"
+                  className="mt-3 font-headline text-xl text-primary/90 md:text-2xl"
+                >
+                  {readText(sections, "spotlight_subheading")}
+                </p>
+              ) : null}
+              {readText(sections, "spotlight_body").trim() ? (
+                <p
+                  data-edit-target="spotlight_body"
+                  className="mt-6 max-w-3xl whitespace-pre-line text-lg leading-relaxed text-foreground/80"
+                >
+                  {readText(sections, "spotlight_body")}
+                </p>
+              ) : null}
+              {readText(sections, "spotlight_cta_text").trim() ? (
+                <a
+                  data-edit-target="spotlight_cta_text,spotlight_cta_link"
+                  href={
+                    readText(sections, "spotlight_cta_link").trim() ||
+                    settings.bookingUrl ||
+                    "#schedule"
+                  }
+                  className="mt-8 inline-flex rounded-xl bg-secondary px-8 py-4 text-sm font-bold text-white transition-all hover:-translate-y-0.5 hover:shadow-lg"
+                >
+                  {readText(sections, "spotlight_cta_text")}
+                </a>
+              ) : null}
+            </div>
+          </section>
+        ) : null}
 
         <section
           data-edit-target="studio_heading,studio_body,studio_feature_cards,studio_image"
@@ -506,11 +580,19 @@ export default async function Home({ searchParams }: HomePageProps) {
             <h2 data-edit-target="faq_heading" className="font-headline text-center text-5xl italic text-primary">
               {readText(sections, "faq_heading", "Frequently Asked Questions")}
             </h2>
-            <div className="mt-12 space-y-4">
+            <div className="mt-12 space-y-6">
               {faqItems.map((item, index) => (
-                <details data-edit-target="faq_items" key={`${item.question}-${index}`} className="rounded-[1rem] bg-white p-6 shadow-sm">
-                  <summary className="cursor-pointer list-none text-lg font-semibold">{item.question}</summary>
-                  <p className="mt-4 border-t border-outline/40 pt-4 leading-relaxed text-foreground/80">{item.answer}</p>
+                <details
+                  data-edit-target="faq_items"
+                  key={`${item.question}-${index}`}
+                  className="group rounded-[1.25rem] border border-primary/12 bg-white/95 p-8 shadow-sm shadow-emerald-950/5 backdrop-blur-sm transition hover:border-primary/25 hover:shadow-md"
+                >
+                  <summary className="cursor-pointer list-none font-headline text-xl italic leading-snug text-primary marker:hidden md:text-2xl [&::-webkit-details-marker]:hidden">
+                    {item.question}
+                  </summary>
+                  <p className="mt-6 border-l-[3px] border-secondary/45 pl-6 text-base leading-relaxed text-foreground/85 md:text-lg">
+                    {item.answer}
+                  </p>
                 </details>
               ))}
             </div>
