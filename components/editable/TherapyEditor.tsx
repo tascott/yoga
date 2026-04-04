@@ -25,6 +25,10 @@ const editableFields: EditableField[] = [
   { key: "therapy_heading", label: "Therapy heading", mode: "text" },
   { key: "therapy_body_primary", label: "Therapy body (paragraph 1)", mode: "textarea" },
   { key: "therapy_body_secondary", label: "Therapy body (paragraph 2)", mode: "textarea" },
+  { key: "therapy_schedule_heading", label: "Therapy booking section heading", mode: "text" },
+  { key: "therapy_schedule_intro", label: "Therapy booking intro", mode: "textarea" },
+  { key: "therapy_schedule_sidebar_heading", label: "Therapy booking sidebar heading", mode: "text" },
+  { key: "therapy_schedule_sidebar_text", label: "Therapy booking sidebar text", mode: "textarea" },
 ];
 
 const requiredSections: Array<{
@@ -51,6 +55,34 @@ const requiredSections: Array<{
     text_value:
       "Sessions are tailored to your goals and pace, with a calm, supportive approach designed to help you build confidence and resilience.",
   },
+  {
+    section_key: "therapy_schedule_heading",
+    label: "Therapy booking section heading",
+    kind: "text",
+    sort_order: 35,
+    text_value: "Book a session",
+  },
+  {
+    section_key: "therapy_schedule_intro",
+    label: "Therapy booking intro",
+    kind: "textarea",
+    sort_order: 36,
+    text_value: "Choose a time for an online consultation or therapy appointment below.",
+  },
+  {
+    section_key: "therapy_schedule_sidebar_heading",
+    label: "Therapy booking sidebar heading",
+    kind: "text",
+    sort_order: 37,
+    text_value: "Booking",
+  },
+  {
+    section_key: "therapy_schedule_sidebar_text",
+    label: "Therapy booking sidebar text",
+    kind: "textarea",
+    sort_order: 38,
+    text_value: "Use the scheduler to pick a slot. Each option has its own book button.",
+  },
   { section_key: "therapy_image", label: "Therapy image", kind: "image", sort_order: 40 },
 ];
 
@@ -61,6 +93,8 @@ function serializeDraftState(params: {
   imageAltValues: Record<string, string>;
   imagePath: string;
   hasPendingFile: boolean;
+  acuityIframeSrc: string;
+  therapyAcuityIframeSrc: string;
 }) {
   return JSON.stringify(params);
 }
@@ -78,6 +112,9 @@ export function TherapyEditor() {
   const [previewKey, setPreviewKey] = useState(0);
   const [activeFieldKey, setActiveFieldKey] = useState<string | null>(null);
   const [saveMessage, setSaveMessage] = useState("All changes saved.");
+  const [siteSettingsId, setSiteSettingsId] = useState<string | null>(null);
+  const [acuityIframeSrc, setAcuityIframeSrc] = useState("");
+  const [therapyAcuityIframeSrc, setTherapyAcuityIframeSrc] = useState("");
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const editorPanelRef = useRef<HTMLFormElement | null>(null);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -192,15 +229,28 @@ export function TherapyEditor() {
         imageAltMap[section.section_key] = section.alt_text ?? "";
       });
 
+      const { data: siteSettings } = await supabase
+        .from("site_settings")
+        .select("id, acuity_iframe_src, therapy_acuity_iframe_src")
+        .limit(1)
+        .maybeSingle();
+
+      if (!isMounted) return;
+
       sectionByKeyRef.current = sectionMap;
       setSectionByKey(sectionMap);
       setFormValues(values);
       setImageAltValues(imageAltMap);
+      setSiteSettingsId(siteSettings?.id ?? null);
+      setAcuityIframeSrc(siteSettings?.acuity_iframe_src ?? "");
+      setTherapyAcuityIframeSrc(siteSettings?.therapy_acuity_iframe_src ?? "");
       lastSavedSnapshotRef.current = serializeDraftState({
         formValues: values,
         imageAltValues: imageAltMap,
         imagePath: sectionMap[imageField.key]?.image_path ?? "",
         hasPendingFile: false,
+        acuityIframeSrc: siteSettings?.acuity_iframe_src ?? "",
+        therapyAcuityIframeSrc: siteSettings?.therapy_acuity_iframe_src ?? "",
       });
       setIsLoading(false);
     }
@@ -325,6 +375,17 @@ export function TherapyEditor() {
       }
 
       const imageSection = sectionByKeyRef.current[imageField.key];
+      if (siteSettingsId) {
+        const { error: settingsError } = await supabase
+          .from("site_settings")
+          .update({
+            acuity_iframe_src: acuityIframeSrc.trim() || null,
+            therapy_acuity_iframe_src: therapyAcuityIframeSrc.trim() || null,
+          })
+          .eq("id", siteSettingsId);
+        if (settingsError) throw new Error(settingsError.message);
+      }
+
       if (imageSection) {
         const nextAltText = imageAltValues[imageField.key] || null;
         let nextImagePath = imageSection.image_path;
@@ -376,6 +437,8 @@ export function TherapyEditor() {
         imageAltValues,
         imagePath: sectionByKeyRef.current[imageField.key]?.image_path ?? "",
         hasPendingFile: false,
+        acuityIframeSrc,
+        therapyAcuityIframeSrc,
       });
       setPreviewKey((current) => current + 1);
     } catch (error) {
@@ -402,6 +465,8 @@ export function TherapyEditor() {
       imageAltValues,
       imagePath: sectionByKeyRef.current[imageField.key]?.image_path ?? "",
       hasPendingFile: Boolean(imageFile),
+      acuityIframeSrc,
+      therapyAcuityIframeSrc,
     });
     const isDirty = currentSnapshot !== lastSavedSnapshotRef.current;
     if (!isDirty) return;
@@ -413,7 +478,7 @@ export function TherapyEditor() {
     return () => {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     };
-  }, [isLoading, formValues, imageAltValues, imageFile]);
+  }, [isLoading, formValues, imageAltValues, imageFile, acuityIframeSrc, therapyAcuityIframeSrc]);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -541,6 +606,38 @@ export function TherapyEditor() {
               onChange={(event) => setImageAltValues((current) => ({ ...current, [imageField.key]: event.target.value }))}
               className="w-full rounded-md border border-black/10 px-3 py-2 text-sm outline-none focus:border-black/30"
             />
+          </section>
+
+          <section className="rounded-xl bg-white p-5 shadow-sm space-y-4">
+            <p className="text-sm font-semibold">Acuity scheduler URLs (site-wide)</p>
+            <p className="text-xs text-foreground/65">
+              Same fields as on the home editor. Only <code className="rounded bg-black/5 px-1">https</code> links on{" "}
+              <code className="rounded bg-black/5 px-1">*.acuityscheduling.com</code> are accepted on the live site.
+            </p>
+            <div>
+              <label htmlFor="therapy-acuity-iframe" className="mb-2 block text-xs font-semibold">
+                Home + default therapy iframe address
+              </label>
+              <input
+                id="therapy-acuity-iframe"
+                value={acuityIframeSrc}
+                onChange={(event) => setAcuityIframeSrc(event.target.value)}
+                placeholder="https://app.acuityscheduling.com/schedule.php?owner=…"
+                className="w-full rounded-md border border-black/10 px-3 py-2 text-sm outline-none focus:border-black/30"
+              />
+            </div>
+            <div>
+              <label htmlFor="therapy-acuity-override" className="mb-2 block text-xs font-semibold">
+                Therapy page only (optional override)
+              </label>
+              <input
+                id="therapy-acuity-override"
+                value={therapyAcuityIframeSrc}
+                onChange={(event) => setTherapyAcuityIframeSrc(event.target.value)}
+                placeholder="Leave blank to use the URL above"
+                className="w-full rounded-md border border-black/10 px-3 py-2 text-sm outline-none focus:border-black/30"
+              />
+            </div>
           </section>
 
           {errorMessage ? <p className="text-sm text-red-700">{errorMessage}</p> : null}

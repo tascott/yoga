@@ -37,5 +37,9 @@ export type HomePageContent = {
     facebookUrl: string | null;
     linkedinUrl: string | null;
     bookingUrl: string | null;
+    /** Iframe `src` from Acuity “Embed scheduler” (https only, acuityscheduling.com). */
+    acuityIframeSrc: string | null;
+    /** Optional therapy-page-only embed URL; falls back to acuityIframeSrc. */
+    therapyAcuityIframeSrc: string | null;
   };
 };

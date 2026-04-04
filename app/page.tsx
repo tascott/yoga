@@ -1,4 +1,7 @@
-import { getHomePageContent } from "@/lib/content/queries";
+import { ContactForm } from "@/components/ContactForm";
+import { AcuityScheduleEmbed } from "@/components/AcuityScheduleEmbed";
+import { resolveAcuityIframeSrc } from "@/lib/acuity";
+import { getHomePageContent, getHomePageContentFresh } from "@/lib/content/queries";
 import Image from "next/image";
 
 type BasicCard = {
@@ -38,10 +41,10 @@ function readJsonObject(value: unknown): Record<string, string> {
 export default async function Home({ searchParams }: HomePageProps) {
   const params = (await searchParams) ?? {};
   const isEditPreview = params.edit === "1";
-  const web3FormsAccessKey = process.env.NEXT_PUBLIC_WEB3FORMS_ACCESS_KEY ?? "";
   const currentYear = new Date().getFullYear();
-  const content = await getHomePageContent();
+  const content = isEditPreview ? await getHomePageContentFresh() : await getHomePageContent();
   const { sections, settings } = content;
+  const homeAcuitySrc = resolveAcuityIframeSrc(settings.acuityIframeSrc);
 
   const navItems = [
     { href: "#about", label: "About" },
@@ -65,6 +68,11 @@ export default async function Home({ searchParams }: HomePageProps) {
   const aboutImage =
     sections.about_headshot_image?.imagePath ||
     "https://lh3.googleusercontent.com/aida-public/AB6AXuDP2_-yLVLrPBa0ks12Sv3gKzOMQt1pMGlaHlaRuF3BO4jR51mNHlmaZCkZOrPUx28wlxzVTXfdnmwNLzxk28xazToQSUE0QLA0Gxy-TwZuL2P1hLzTrReR2G_KCP4yWDVNtPROdQ-U4PYj1tho4Brv9VwMPG5C-lxO-wXS2yk6hPFoKR0bsZWJKr4XU40naw-xFcBDX0fuiFTl5eQ75NewXvP6gFy2HAnWKi5lMu0qXO_XPX_G91p5r4XZufjE7DMgUpWR6rNJng";
+  const sanctuaryImage = sections.sanctuary_image?.imagePath ?? null;
+  const hasSanctuarySocials =
+    Boolean(settings.instagramUrl?.trim()) ||
+    Boolean(settings.facebookUrl?.trim()) ||
+    Boolean(settings.linkedinUrl?.trim());
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -112,7 +120,7 @@ export default async function Home({ searchParams }: HomePageProps) {
             ))}
           </ul>
           <a
-            href={settings.bookingUrl || readText(sections, "booking_cta_link", "#schedule")}
+            href="#schedule"
             className="ml-4 hidden shrink-0 whitespace-nowrap rounded-full bg-primary px-5 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-white transition-colors hover:bg-primary-container lg:inline-flex"
           >
             Book now
@@ -133,7 +141,7 @@ export default async function Home({ searchParams }: HomePageProps) {
                   </a>
                 ))}
                 <a
-                  href={settings.bookingUrl || readText(sections, "booking_cta_link", "#schedule")}
+                  href="#schedule"
                   className="mt-2 rounded-md bg-primary px-3 py-2 text-center text-xs font-semibold uppercase tracking-[0.2em] text-white"
                 >
                   Book now
@@ -328,8 +336,8 @@ export default async function Home({ searchParams }: HomePageProps) {
 
         <section
           id="schedule"
-          data-edit-target="schedule_heading,schedule_intro,booking_cta_text,booking_cta_link"
-          className={`bg-surface-low py-28 ${
+          data-edit-target="schedule_heading,schedule_intro,schedule_sidebar_heading,schedule_sidebar_text"
+          className={`scroll-mt-28 bg-surface-low py-28 ${
             isEditPreview ? "outline outline-2 outline-transparent transition hover:outline-primary/40" : ""
           }`}
         >
@@ -341,31 +349,24 @@ export default async function Home({ searchParams }: HomePageProps) {
               {readText(sections, "schedule_intro", "Find a time that works for you. Book your studio or online session.")}
             </p>
             <div className="mt-10 overflow-hidden rounded-[1.5rem] border border-outline/40 bg-white shadow-xl">
-              <div className="grid gap-0 md:grid-cols-[20rem_1fr]">
+              <div className="grid gap-0 md:grid-cols-[minmax(0,20rem)_1fr]">
                 <aside className="bg-surface-container p-8">
-                  <h3 className="font-headline text-2xl">Booking</h3>
-                  <p className="mt-4 text-sm leading-relaxed text-foreground/75">
-                    Acuity is not connected yet. This is currently a placeholder section.
-                  </p>
-                  <a
-                    data-edit-target="booking_cta_text,booking_cta_link"
-                    href={settings.bookingUrl || readText(sections, "booking_cta_link", "#")}
-                    className="mt-6 inline-flex rounded-xl bg-primary px-6 py-3 text-sm font-semibold text-white"
+                  <h3 data-edit-target="schedule_sidebar_heading" className="font-headline text-2xl">
+                    {readText(sections, "schedule_sidebar_heading", "Booking")}
+                  </h3>
+                  <p
+                    data-edit-target="schedule_sidebar_text"
+                    className="mt-4 whitespace-pre-line text-sm leading-relaxed text-foreground/75"
                   >
-                    {readText(sections, "booking_cta_text", "Booking coming soon")}
-                  </a>
+                    {readText(
+                      sections,
+                      "schedule_sidebar_text",
+                      "Use the scheduler to choose a class or session. Each listing has its own book button.",
+                    )}
+                  </p>
                 </aside>
-                <div className="p-8">
-                  <div className="grid grid-cols-7 gap-3 text-center text-xs font-semibold uppercase tracking-[0.2em] text-secondary">
-                    <span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span>
-                  </div>
-                  <div className="mt-4 grid grid-cols-7 gap-2">
-                    {[28, 29, 30, 1, 2, 3, 4].map((day) => (
-                      <div key={day} className="h-24 rounded-lg border border-outline/30 bg-surface-low p-2 text-xs">
-                        {day}
-                      </div>
-                    ))}
-                  </div>
+                <div className="min-h-[480px] bg-white md:min-h-[800px]">
+                  <AcuityScheduleEmbed src={homeAcuitySrc} />
                 </div>
               </div>
             </div>
@@ -383,7 +384,7 @@ export default async function Home({ searchParams }: HomePageProps) {
 
         <section
           id="contact"
-          data-edit-target="contact_heading,contact_intro,contact_group"
+          data-edit-target="contact_heading,contact_intro,contact_group,sanctuary_heading,sanctuary_body,sanctuary_image"
           className={`mx-auto max-w-7xl px-6 py-28 ${
             isEditPreview ? "outline outline-2 outline-transparent transition hover:outline-primary/40" : ""
           }`}
@@ -396,58 +397,7 @@ export default async function Home({ searchParams }: HomePageProps) {
               <p data-edit-target="contact_intro" className="mt-6 text-lg leading-relaxed text-foreground/80">
                 {readText(sections, "contact_intro")}
               </p>
-              <form action="https://api.web3forms.com/submit" method="POST" className="mt-8 space-y-4 rounded-xl bg-white p-5 shadow-sm">
-                <input type="hidden" name="access_key" value={web3FormsAccessKey} />
-                <input type="hidden" name="subject" value="New Accessible Yoga Hut enquiry" />
-                <input type="checkbox" name="botcheck" className="hidden" tabIndex={-1} autoComplete="off" />
-                <div>
-                  <label htmlFor="contact-name" className="mb-1 block text-xs font-semibold uppercase tracking-[0.12em] text-foreground/70">
-                    Name
-                  </label>
-                  <input
-                    id="contact-name"
-                    name="name"
-                    required
-                    className="w-full rounded-md border border-black/10 px-3 py-2 text-sm outline-none focus:border-black/30"
-                  />
-                </div>
-                <div>
-                  <label htmlFor="contact-email" className="mb-1 block text-xs font-semibold uppercase tracking-[0.12em] text-foreground/70">
-                    Email
-                  </label>
-                  <input
-                    id="contact-email"
-                    name="email"
-                    type="email"
-                    required
-                    className="w-full rounded-md border border-black/10 px-3 py-2 text-sm outline-none focus:border-black/30"
-                  />
-                </div>
-                <div>
-                  <label htmlFor="contact-message" className="mb-1 block text-xs font-semibold uppercase tracking-[0.12em] text-foreground/70">
-                    Message
-                  </label>
-                  <textarea
-                    id="contact-message"
-                    name="message"
-                    rows={4}
-                    required
-                    className="w-full rounded-md border border-black/10 px-3 py-2 text-sm outline-none focus:border-black/30"
-                  />
-                </div>
-                {!web3FormsAccessKey ? (
-                  <p className="text-xs text-red-700">
-                    Missing `NEXT_PUBLIC_WEB3FORMS_ACCESS_KEY` in environment settings.
-                  </p>
-                ) : null}
-                <button
-                  type="submit"
-                  disabled={!web3FormsAccessKey}
-                  className="rounded-md bg-primary px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  Send message
-                </button>
-              </form>
+              <ContactForm />
               <div data-edit-target="contact_group" className="mt-10 space-y-2 text-sm text-foreground/80">
                 <p>{contactGroup.email || settings.primaryEmail || "Email to be added"}</p>
                 <p>{contactGroup.phone || settings.primaryPhone || "+44 20 7946 0958"}</p>
@@ -463,27 +413,83 @@ export default async function Home({ searchParams }: HomePageProps) {
                 </p>
               </div>
             </div>
-            <div className="rounded-[1.5rem] bg-surface-high p-8">
-              <h3 className="font-headline text-3xl">Our Sanctuary</h3>
-              <p className="mt-4 text-foreground/75">
-                Residential street with ample free parking. Directions provided upon booking.
-              </p>
-              <div className="mt-8 space-y-2 text-sm">
-                <p className="font-semibold text-secondary">Social</p>
-                <div className="flex gap-4">
-                  <a href={settings.instagramUrl || "https://instagram.com"} className="inline-flex items-center gap-1">
-                    <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4 fill-current">
-                      <path d="M7.75 2h8.5A5.75 5.75 0 0 1 22 7.75v8.5A5.75 5.75 0 0 1 16.25 22h-8.5A5.75 5.75 0 0 1 2 16.25v-8.5A5.75 5.75 0 0 1 7.75 2Zm0 1.5A4.25 4.25 0 0 0 3.5 7.75v8.5A4.25 4.25 0 0 0 7.75 20.5h8.5a4.25 4.25 0 0 0 4.25-4.25v-8.5A4.25 4.25 0 0 0 16.25 3.5h-8.5Zm8.9 1.3a1.05 1.05 0 1 1 0 2.1 1.05 1.05 0 0 1 0-2.1ZM12 7a5 5 0 1 1 0 10 5 5 0 0 1 0-10Zm0 1.5a3.5 3.5 0 1 0 0 7.001A3.5 3.5 0 0 0 12 8.5Z" />
-                    </svg>
-                    Instagram
-                  </a>
-                  <a href={settings.facebookUrl || "https://facebook.com"} className="inline-flex items-center gap-1">
-                    <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4 fill-current">
-                      <path d="M13.5 22v-8h2.7l.4-3h-3.1V9.2c0-.9.3-1.5 1.6-1.5h1.7V5.1c-.3 0-1.3-.1-2.4-.1-2.4 0-4 1.4-4 4.1V11H8v3h2.4v8h3.1Z" />
-                    </svg>
-                    Facebook
-                  </a>
+            <div
+              className="overflow-hidden rounded-[1.5rem] border border-black/10 bg-surface-high shadow-md shadow-emerald-950/8"
+              data-edit-target="sanctuary_heading,sanctuary_body,sanctuary_image"
+            >
+              {sanctuaryImage ? (
+                <div data-edit-target="sanctuary_image" className="relative aspect-[16/10] w-full bg-surface-low">
+                  <Image
+                    src={sanctuaryImage}
+                    alt={sections.sanctuary_image?.altText || "Studio or sanctuary space"}
+                    fill
+                    sizes="(min-width: 1024px) 42vw, 100vw"
+                    className="object-cover"
+                  />
                 </div>
+              ) : null}
+              <div className="p-8">
+                <h3 data-edit-target="sanctuary_heading" className="font-headline text-3xl text-primary">
+                  {readText(sections, "sanctuary_heading", "Our Sanctuary")}
+                </h3>
+                <p
+                  data-edit-target="sanctuary_body"
+                  className="mt-4 whitespace-pre-line leading-relaxed text-foreground/80"
+                >
+                  {readText(
+                    sections,
+                    "sanctuary_body",
+                    "Residential street with ample free parking. Directions provided upon booking.",
+                  )}
+                </p>
+                {hasSanctuarySocials ? (
+                  <div className="mt-8">
+                    <p className="mb-4 text-xs font-semibold uppercase tracking-[0.22em] text-secondary">
+                      Follow the Hut
+                    </p>
+                    <div className="flex flex-wrap gap-3">
+                      {settings.instagramUrl?.trim() ? (
+                        <a
+                          href={settings.instagramUrl.trim()}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-2.5 rounded-full border-2 border-primary/30 bg-white px-5 py-3 text-sm font-semibold text-primary shadow-sm transition hover:border-primary hover:bg-primary hover:text-white hover:shadow-md"
+                        >
+                          <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5 shrink-0 fill-current">
+                            <path d="M7.75 2h8.5A5.75 5.75 0 0 1 22 7.75v8.5A5.75 5.75 0 0 1 16.25 22h-8.5A5.75 5.75 0 0 1 2 16.25v-8.5A5.75 5.75 0 0 1 7.75 2Zm0 1.5A4.25 4.25 0 0 0 3.5 7.75v8.5A4.25 4.25 0 0 0 7.75 20.5h8.5a4.25 4.25 0 0 0 4.25-4.25v-8.5A4.25 4.25 0 0 0 16.25 3.5h-8.5Zm8.9 1.3a1.05 1.05 0 1 1 0 2.1 1.05 1.05 0 0 1 0-2.1ZM12 7a5 5 0 1 1 0 10 5 5 0 0 1 0-10Zm0 1.5a3.5 3.5 0 1 0 0 7.001A3.5 3.5 0 0 0 12 8.5Z" />
+                          </svg>
+                          Instagram
+                        </a>
+                      ) : null}
+                      {settings.facebookUrl?.trim() ? (
+                        <a
+                          href={settings.facebookUrl.trim()}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-2.5 rounded-full border-2 border-primary/30 bg-white px-5 py-3 text-sm font-semibold text-primary shadow-sm transition hover:border-primary hover:bg-primary hover:text-white hover:shadow-md"
+                        >
+                          <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5 shrink-0 fill-current">
+                            <path d="M13.5 22v-8h2.7l.4-3h-3.1V9.2c0-.9.3-1.5 1.6-1.5h1.7V5.1c-.3 0-1.3-.1-2.4-.1-2.4 0-4 1.4-4 4.1V11H8v3h2.4v8h3.1Z" />
+                          </svg>
+                          Facebook
+                        </a>
+                      ) : null}
+                      {settings.linkedinUrl?.trim() ? (
+                        <a
+                          href={settings.linkedinUrl.trim()}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-2.5 rounded-full border-2 border-primary/30 bg-white px-5 py-3 text-sm font-semibold text-primary shadow-sm transition hover:border-primary hover:bg-primary hover:text-white hover:shadow-md"
+                        >
+                          <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5 shrink-0 fill-current">
+                            <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z" />
+                          </svg>
+                          LinkedIn
+                        </a>
+                      ) : null}
+                    </div>
+                  </div>
+                ) : null}
               </div>
             </div>
           </div>

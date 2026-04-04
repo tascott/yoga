@@ -14,6 +14,10 @@ const newsreader = Newsreader({
 export const metadata: Metadata = {
   title: "Accessible Yoga Hut",
   description: "Accessible yoga in Mill Hill and online.",
+  icons: {
+    icon: "/header-logo.png",
+    apple: "/header-logo.png",
+  },
 };
 
 export default function RootLayout({

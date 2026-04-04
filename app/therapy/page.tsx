@@ -1,5 +1,12 @@
 import Image from "next/image";
-import { getHomePageContent, getTherapyPageContent } from "@/lib/content/queries";
+import { AcuityScheduleEmbed } from "@/components/AcuityScheduleEmbed";
+import { resolveAcuityIframeSrc } from "@/lib/acuity";
+import {
+  getHomePageContent,
+  getHomePageContentFresh,
+  getTherapyPageContent,
+  getTherapyPageContentFresh,
+} from "@/lib/content/queries";
 
 type TherapyPageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
@@ -16,9 +23,10 @@ function readText(
 export default async function TherapyPage({ searchParams }: TherapyPageProps) {
   const params = (await searchParams) ?? {};
   const isEditPreview = params.edit === "1";
-  const content = await getTherapyPageContent();
-  const homeContent = await getHomePageContent();
+  const content = isEditPreview ? await getTherapyPageContentFresh() : await getTherapyPageContent();
+  const homeContent = isEditPreview ? await getHomePageContentFresh() : await getHomePageContent();
   const { sections, settings } = content;
+  const therapyAcuitySrc = resolveAcuityIframeSrc(settings.therapyAcuityIframeSrc, settings.acuityIframeSrc);
 
   const therapyImage =
     sections.therapy_image?.imagePath ||
@@ -52,7 +60,7 @@ export default async function TherapyPage({ searchParams }: TherapyPageProps) {
               Accessible yoga
             </a>
             <a
-              href={settings.bookingUrl || "/#schedule"}
+              href="#therapy-booking"
               className="rounded-full bg-primary px-5 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-white"
             >
               Book now
@@ -94,6 +102,55 @@ export default async function TherapyPage({ searchParams }: TherapyPageProps) {
                 sizes="(min-width: 768px) 40vw, 100vw"
                 className="h-full w-full object-cover"
               />
+            </div>
+          </div>
+        </section>
+
+        <section
+          id="therapy-booking"
+          data-edit-target="therapy_schedule_heading,therapy_schedule_intro,therapy_schedule_sidebar_heading,therapy_schedule_sidebar_text"
+          className={`scroll-mt-28 bg-surface-low py-20 ${
+            isEditPreview ? "outline outline-2 outline-transparent transition hover:outline-primary/40" : ""
+          }`}
+        >
+          <div className="mx-auto max-w-7xl px-6">
+            <h2
+              data-edit-target="therapy_schedule_heading"
+              className="font-headline text-4xl text-primary md:text-5xl"
+            >
+              {readText(sections, "therapy_schedule_heading", "Book a session")}
+            </h2>
+            <p data-edit-target="therapy_schedule_intro" className="mt-4 max-w-2xl text-foreground/80">
+              {readText(
+                sections,
+                "therapy_schedule_intro",
+                "Choose a time for an online consultation or therapy appointment below.",
+              )}
+            </p>
+            <div className="mt-10 overflow-hidden rounded-[1.5rem] border border-outline/40 bg-white shadow-xl">
+              <div className="grid gap-0 md:grid-cols-[minmax(0,20rem)_1fr]">
+                <aside className="bg-surface-container p-8">
+                  <h3
+                    data-edit-target="therapy_schedule_sidebar_heading"
+                    className="font-headline text-2xl"
+                  >
+                    {readText(sections, "therapy_schedule_sidebar_heading", "Booking")}
+                  </h3>
+                  <p
+                    data-edit-target="therapy_schedule_sidebar_text"
+                    className="mt-4 whitespace-pre-line text-sm leading-relaxed text-foreground/75"
+                  >
+                    {readText(
+                      sections,
+                      "therapy_schedule_sidebar_text",
+                      "Use the scheduler to pick a slot. Each option has its own book button.",
+                    )}
+                  </p>
+                </aside>
+                <div className="min-h-[480px] bg-white md:min-h-[800px]">
+                  <AcuityScheduleEmbed src={therapyAcuitySrc} />
+                </div>
+              </div>
             </div>
           </div>
         </section>

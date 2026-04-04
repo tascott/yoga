@@ -164,6 +164,7 @@ export type Database = {
       }
       site_settings: {
         Row: {
+          acuity_iframe_src: string | null
           address_line_1: string | null
           address_line_2: string | null
           booking_url: string | null
@@ -178,9 +179,11 @@ export type Database = {
           primary_email: string | null
           primary_phone: string | null
           site_name: string | null
+          therapy_acuity_iframe_src: string | null
           updated_at: string
         }
         Insert: {
+          acuity_iframe_src?: string | null
           address_line_1?: string | null
           address_line_2?: string | null
           booking_url?: string | null
@@ -195,9 +198,11 @@ export type Database = {
           primary_email?: string | null
           primary_phone?: string | null
           site_name?: string | null
+          therapy_acuity_iframe_src?: string | null
           updated_at?: string
         }
         Update: {
+          acuity_iframe_src?: string | null
           address_line_1?: string | null
           address_line_2?: string | null
           booking_url?: string | null
@@ -212,6 +217,7 @@ export type Database = {
           primary_email?: string | null
           primary_phone?: string | null
           site_name?: string | null
+          therapy_acuity_iframe_src?: string | null
           updated_at?: string
         }
         Relationships: []

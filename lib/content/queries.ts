@@ -48,14 +48,13 @@ function mapSections(
   }, {});
 }
 
-const getHomePageContentCached = unstable_cache(
-  async (): Promise<HomePageContent> => {
-    const supabase = createSupabaseServerClient();
+async function loadHomePageContent(): Promise<HomePageContent> {
+  const supabase = createSupabaseServerClient();
 
-    const { data: page, error: pageError } = await supabase
-      .from("pages")
-      .select(
-        `
+  const { data: page, error: pageError } = await supabase
+    .from("pages")
+    .select(
+      `
         title,
         seo_title,
         seo_description,
@@ -71,64 +70,73 @@ const getHomePageContentCached = unstable_cache(
           json_value
         )
       `,
-      )
-      .eq("slug", "home")
-      .single();
+    )
+    .eq("slug", "home")
+    .single();
 
-    if (pageError) {
-      throw new Error(`Failed to fetch home page: ${pageError.message}`);
-    }
+  if (pageError) {
+    throw new Error(`Failed to fetch home page: ${pageError.message}`);
+  }
 
-    const { data: settings, error: settingsError } = await supabase
-      .from("site_settings")
-      .select(
-        "site_name, primary_phone, primary_email, address_line_1, address_line_2, city, postcode, instagram_url, facebook_url, linkedin_url, booking_url",
-      )
-      .limit(1)
-      .maybeSingle();
+  const { data: settings, error: settingsError } = await supabase
+    .from("site_settings")
+    .select(
+      "site_name, primary_phone, primary_email, address_line_1, address_line_2, city, postcode, instagram_url, facebook_url, linkedin_url, booking_url, acuity_iframe_src, therapy_acuity_iframe_src",
+    )
+    .limit(1)
+    .maybeSingle();
 
-    if (settingsError) {
-      throw new Error(`Failed to fetch site settings: ${settingsError.message}`);
-    }
+  if (settingsError) {
+    throw new Error(`Failed to fetch site settings: ${settingsError.message}`);
+  }
 
-    const sections = mapSections(supabase, (page.page_sections ?? []) as SectionRow[]);
+  const sections = mapSections(supabase, (page.page_sections ?? []) as SectionRow[]);
 
-    return {
-      pageTitle: page.title,
-      seoTitle: page.seo_title,
-      seoDescription: page.seo_description,
-      sections,
-      settings: {
-        siteName: settings?.site_name ?? null,
-        primaryPhone: settings?.primary_phone ?? null,
-        primaryEmail: settings?.primary_email ?? null,
-        addressLine1: settings?.address_line_1 ?? null,
-        addressLine2: settings?.address_line_2 ?? null,
-        city: settings?.city ?? null,
-        postcode: settings?.postcode ?? null,
-        instagramUrl: settings?.instagram_url ?? null,
-        facebookUrl: settings?.facebook_url ?? null,
-        linkedinUrl: settings?.linkedin_url ?? null,
-        bookingUrl: settings?.booking_url ?? null,
-      },
-    };
-  },
-  ["home-page-content"],
-  { revalidate: 60, tags: ["page:home", "site:settings"] },
-);
+  return {
+    pageTitle: page.title,
+    seoTitle: page.seo_title,
+    seoDescription: page.seo_description,
+    sections,
+    settings: {
+      siteName: settings?.site_name ?? null,
+      primaryPhone: settings?.primary_phone ?? null,
+      primaryEmail: settings?.primary_email ?? null,
+      addressLine1: settings?.address_line_1 ?? null,
+      addressLine2: settings?.address_line_2 ?? null,
+      city: settings?.city ?? null,
+      postcode: settings?.postcode ?? null,
+      instagramUrl: settings?.instagram_url ?? null,
+      facebookUrl: settings?.facebook_url ?? null,
+      linkedinUrl: settings?.linkedin_url ?? null,
+      bookingUrl: settings?.booking_url ?? null,
+      acuityIframeSrc: settings?.acuity_iframe_src ?? null,
+      therapyAcuityIframeSrc: settings?.therapy_acuity_iframe_src ?? null,
+    },
+  };
+}
 
+const getHomePageContentCached = unstable_cache(loadHomePageContent, ["home-page-content"], {
+  revalidate: 60,
+  tags: ["page:home", "site:settings"],
+});
+
+/** Public pages; cached ~60s. */
 export async function getHomePageContent() {
   return getHomePageContentCached();
 }
 
-const getTherapyPageContentCached = unstable_cache(
-  async (): Promise<HomePageContent> => {
-    const supabase = createSupabaseServerClient();
+/** Editor iframe preview (`?edit=1`) — always matches Supabase, no stale cache. */
+export async function getHomePageContentFresh() {
+  return loadHomePageContent();
+}
 
-    const { data: page, error: pageError } = await supabase
-      .from("pages")
-      .select(
-        `
+async function loadTherapyPageContent(): Promise<HomePageContent> {
+  const supabase = createSupabaseServerClient();
+
+  const { data: page, error: pageError } = await supabase
+    .from("pages")
+    .select(
+      `
         title,
         seo_title,
         seo_description,
@@ -144,52 +152,60 @@ const getTherapyPageContentCached = unstable_cache(
           json_value
         )
       `,
-      )
-      .eq("slug", "therapy")
-      .maybeSingle();
+    )
+    .eq("slug", "therapy")
+    .maybeSingle();
 
-    if (pageError) {
-      throw new Error(`Failed to fetch therapy page: ${pageError.message}`);
-    }
+  if (pageError) {
+    throw new Error(`Failed to fetch therapy page: ${pageError.message}`);
+  }
 
-    const { data: settings, error: settingsError } = await supabase
-      .from("site_settings")
-      .select(
-        "site_name, primary_phone, primary_email, address_line_1, address_line_2, city, postcode, instagram_url, facebook_url, linkedin_url, booking_url",
-      )
-      .limit(1)
-      .maybeSingle();
+  const { data: settings, error: settingsError } = await supabase
+    .from("site_settings")
+    .select(
+      "site_name, primary_phone, primary_email, address_line_1, address_line_2, city, postcode, instagram_url, facebook_url, linkedin_url, booking_url, acuity_iframe_src, therapy_acuity_iframe_src",
+    )
+    .limit(1)
+    .maybeSingle();
 
-    if (settingsError) {
-      throw new Error(`Failed to fetch site settings: ${settingsError.message}`);
-    }
+  if (settingsError) {
+    throw new Error(`Failed to fetch site settings: ${settingsError.message}`);
+  }
 
-    const sections = mapSections(supabase, (page?.page_sections ?? []) as SectionRow[]);
+  const sections = mapSections(supabase, (page?.page_sections ?? []) as SectionRow[]);
 
-    return {
-      pageTitle: page?.title ?? "Therapy",
-      seoTitle: page?.seo_title ?? "Therapy | Accessible Yoga Hut",
-      seoDescription: page?.seo_description ?? "Therapy support from Accessible Yoga Hut.",
-      sections,
-      settings: {
-        siteName: settings?.site_name ?? null,
-        primaryPhone: settings?.primary_phone ?? null,
-        primaryEmail: settings?.primary_email ?? null,
-        addressLine1: settings?.address_line_1 ?? null,
-        addressLine2: settings?.address_line_2 ?? null,
-        city: settings?.city ?? null,
-        postcode: settings?.postcode ?? null,
-        instagramUrl: settings?.instagram_url ?? null,
-        facebookUrl: settings?.facebook_url ?? null,
-        linkedinUrl: settings?.linkedin_url ?? null,
-        bookingUrl: settings?.booking_url ?? null,
-      },
-    };
-  },
-  ["therapy-page-content"],
-  { revalidate: 60, tags: ["page:therapy", "site:settings"] },
-);
+  return {
+    pageTitle: page?.title ?? "Therapy",
+    seoTitle: page?.seo_title ?? "Therapy | Accessible Yoga Hut",
+    seoDescription: page?.seo_description ?? "Therapy support from Accessible Yoga Hut.",
+    sections,
+    settings: {
+      siteName: settings?.site_name ?? null,
+      primaryPhone: settings?.primary_phone ?? null,
+      primaryEmail: settings?.primary_email ?? null,
+      addressLine1: settings?.address_line_1 ?? null,
+      addressLine2: settings?.address_line_2 ?? null,
+      city: settings?.city ?? null,
+      postcode: settings?.postcode ?? null,
+      instagramUrl: settings?.instagram_url ?? null,
+      facebookUrl: settings?.facebook_url ?? null,
+      linkedinUrl: settings?.linkedin_url ?? null,
+      bookingUrl: settings?.booking_url ?? null,
+      acuityIframeSrc: settings?.acuity_iframe_src ?? null,
+      therapyAcuityIframeSrc: settings?.therapy_acuity_iframe_src ?? null,
+    },
+  };
+}
+
+const getTherapyPageContentCached = unstable_cache(loadTherapyPageContent, ["therapy-page-content"], {
+  revalidate: 60,
+  tags: ["page:therapy", "site:settings"],
+});
 
 export async function getTherapyPageContent() {
   return getTherapyPageContentCached();
+}
+
+export async function getTherapyPageContentFresh() {
+  return loadTherapyPageContent();
 }

@@ -39,10 +39,12 @@ const editableFields: EditableField[] = [
   { key: "practice_heading", label: "Practice heading", mode: "text" },
   { key: "schedule_heading", label: "Schedule heading", mode: "text" },
   { key: "schedule_intro", label: "Schedule intro", mode: "textarea" },
-  { key: "booking_cta_text", label: "Booking CTA text", mode: "text" },
-  { key: "booking_cta_link", label: "Booking CTA link", mode: "text" },
+  { key: "schedule_sidebar_heading", label: "Schedule sidebar heading", mode: "text" },
+  { key: "schedule_sidebar_text", label: "Schedule sidebar text", mode: "textarea" },
   { key: "contact_heading", label: "Contact heading", mode: "text" },
   { key: "contact_intro", label: "Contact intro", mode: "textarea" },
+  { key: "sanctuary_heading", label: "Our Sanctuary heading", mode: "text" },
+  { key: "sanctuary_body", label: "Our Sanctuary intro", mode: "textarea" },
   { key: "faq_heading", label: "FAQ heading", mode: "text" },
 ];
 
@@ -113,6 +115,7 @@ const imageFields = [
   { key: "site_logo_image", label: "Header logo image" },
   { key: "studio_image", label: "Studio image" },
   { key: "about_headshot_image", label: "About headshot image" },
+  { key: "sanctuary_image", label: "Our Sanctuary image" },
 ] as const;
 
 const requiredHomeSections: Array<{
@@ -143,12 +146,50 @@ const requiredHomeSections: Array<{
     sort_order: 147,
     text_value: "/therapy",
   },
+  {
+    section_key: "schedule_sidebar_heading",
+    label: "Schedule sidebar heading",
+    kind: "text",
+    sort_order: 149,
+    text_value: "Booking",
+  },
+  {
+    section_key: "schedule_sidebar_text",
+    label: "Schedule sidebar text",
+    kind: "textarea",
+    sort_order: 150,
+    text_value:
+      "Use the scheduler to choose a class or session. Each listing has its own book button.",
+  },
+  {
+    section_key: "sanctuary_heading",
+    label: "Our Sanctuary heading",
+    kind: "text",
+    sort_order: 200,
+    text_value: "Our Sanctuary",
+  },
+  {
+    section_key: "sanctuary_body",
+    label: "Our Sanctuary intro",
+    kind: "textarea",
+    sort_order: 201,
+    text_value: "Residential street with ample free parking. Directions provided upon booking.",
+  },
+  {
+    section_key: "sanctuary_image",
+    label: "Our Sanctuary image",
+    kind: "image",
+    sort_order: 202,
+    text_value: null,
+  },
 ];
 
 function serializeDraftState(params: {
   formValues: Record<string, string>;
   imageAltValues: Record<string, string>;
   bookingUrl: string;
+  acuityIframeSrc: string;
+  therapyAcuityIframeSrc: string;
   studioFeatureCards: SimpleCard[];
   practiceCards: SimpleCard[];
   faqItems: FaqItem[];
@@ -182,6 +223,8 @@ export function HomeEditor() {
     address_line_2: "",
   });
   const [bookingUrl, setBookingUrl] = useState("");
+  const [acuityIframeSrc, setAcuityIframeSrc] = useState("");
+  const [therapyAcuityIframeSrc, setTherapyAcuityIframeSrc] = useState("");
   const [siteSettingsId, setSiteSettingsId] = useState<string | null>(null);
   const [previewKey, setPreviewKey] = useState(0);
   const [activeFieldKey, setActiveFieldKey] = useState<string | null>(null);
@@ -320,7 +363,11 @@ export function HomeEditor() {
         imageAltMap[section.section_key] = section.alt_text ?? "";
       });
 
-      const { data: settings } = await supabase.from("site_settings").select("id, booking_url").limit(1).maybeSingle();
+      const { data: settings } = await supabase
+        .from("site_settings")
+        .select("id, booking_url, acuity_iframe_src, therapy_acuity_iframe_src")
+        .limit(1)
+        .maybeSingle();
 
       if (!isMounted) return;
       sectionByKeyRef.current = sectionMap;
@@ -332,11 +379,15 @@ export function HomeEditor() {
       setFaqItems(nextFaqItems);
       setContactGroup(nextContactGroup);
       setBookingUrl(settings?.booking_url ?? "");
+      setAcuityIframeSrc(settings?.acuity_iframe_src ?? "");
+      setTherapyAcuityIframeSrc(settings?.therapy_acuity_iframe_src ?? "");
       setSiteSettingsId(settings?.id ?? null);
       lastSavedSnapshotRef.current = serializeDraftState({
         formValues: values,
         imageAltValues: imageAltMap,
         bookingUrl: settings?.booking_url ?? "",
+        acuityIframeSrc: settings?.acuity_iframe_src ?? "",
+        therapyAcuityIframeSrc: settings?.therapy_acuity_iframe_src ?? "",
         studioFeatureCards: nextStudioCards,
         practiceCards: nextPracticeCards,
         faqItems: nextFaqItems,
@@ -604,7 +655,11 @@ export function HomeEditor() {
       if (siteSettingsId) {
         const { error } = await supabase
           .from("site_settings")
-          .update({ booking_url: bookingUrl || null })
+          .update({
+            booking_url: bookingUrl || null,
+            acuity_iframe_src: acuityIframeSrc.trim() || null,
+            therapy_acuity_iframe_src: therapyAcuityIframeSrc.trim() || null,
+          })
           .eq("id", siteSettingsId);
         if (error) throw new Error(error.message);
       }
@@ -616,6 +671,8 @@ export function HomeEditor() {
         formValues,
         imageAltValues,
         bookingUrl,
+        acuityIframeSrc,
+        therapyAcuityIframeSrc,
         studioFeatureCards,
         practiceCards,
         faqItems,
@@ -654,6 +711,8 @@ export function HomeEditor() {
       formValues,
       imageAltValues,
       bookingUrl,
+      acuityIframeSrc,
+      therapyAcuityIframeSrc,
       studioFeatureCards,
       practiceCards,
       faqItems,
@@ -681,6 +740,8 @@ export function HomeEditor() {
     formValues,
     imageAltValues,
     bookingUrl,
+    acuityIframeSrc,
+    therapyAcuityIframeSrc,
     studioFeatureCards,
     practiceCards,
     faqItems,
@@ -1064,6 +1125,41 @@ export function HomeEditor() {
             placeholder="https://..."
             className="w-full rounded-md border border-black/10 px-3 py-2 text-sm outline-none focus:border-black/30"
           />
+        </section>
+
+        <section className="rounded-xl bg-white p-5 shadow-sm space-y-4">
+          <div>
+            <label htmlFor="acuity_iframe_src" className="mb-2 block text-sm font-semibold">
+              Acuity embed: iframe address (home + default for therapy)
+            </label>
+            <p className="mb-2 text-xs text-foreground/65">
+              Paste only the URL from your Acuity embed code (the <code className="rounded bg-black/5 px-1">src=&quot;…&quot;</code> value). Must be{" "}
+              <code className="rounded bg-black/5 px-1">https</code> on <code className="rounded bg-black/5 px-1">*.acuityscheduling.com</code>. Leave blank to
+              use the built-in default.
+            </p>
+            <input
+              id="acuity_iframe_src"
+              value={acuityIframeSrc}
+              onChange={(event) => setAcuityIframeSrc(event.target.value)}
+              placeholder="https://app.acuityscheduling.com/schedule.php?owner=…"
+              className="w-full rounded-md border border-black/10 px-3 py-2 text-sm outline-none focus:border-black/30"
+            />
+          </div>
+          <div>
+            <label htmlFor="therapy_acuity_iframe_src" className="mb-2 block text-sm font-semibold">
+              Acuity embed: therapy page only (optional)
+            </label>
+            <p className="mb-2 text-xs text-foreground/65">
+              If set, the therapy page scheduler uses this URL instead of the one above (e.g. a consultation-only link).
+            </p>
+            <input
+              id="therapy_acuity_iframe_src"
+              value={therapyAcuityIframeSrc}
+              onChange={(event) => setTherapyAcuityIframeSrc(event.target.value)}
+              placeholder="Leave blank to match home scheduler"
+              className="w-full rounded-md border border-black/10 px-3 py-2 text-sm outline-none focus:border-black/30"
+            />
+          </div>
         </section>
 
         {errorMessage ? <p className="text-sm text-red-700">{errorMessage}</p> : null}
